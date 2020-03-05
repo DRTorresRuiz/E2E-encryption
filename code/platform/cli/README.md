@@ -10,3 +10,4 @@ https://click.palletsprojects.com/en/7.x/quickstart/#basic-concepts-creating-a-c
 https://click.palletsprojects.com/en/7.x/documentation/
 
 Web-server: https://medium.com/@andrewklatzke/creating-a-python3-webserver-from-the-ground-up-4ff8933ecb96
+Read & Write JSON: https://stackabuse.com/reading-and-writing-json-to-a-file-in-python/

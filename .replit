@@ -1,3 +1,4 @@
-language = "python"
-run = "python3 code/platform/CLI/e2e.py"
+`language = "python"
+# pip3 install -r requirements.txt;
+run = "python3 code/platform/cli/e2e.py"
   

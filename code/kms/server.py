@@ -1,6 +1,8 @@
 #!flask/bin/python
 from flask import Flask
 
+secretRegisteredDevices = []
+
 app = Flask(__name__)
 
 @app.route('/')

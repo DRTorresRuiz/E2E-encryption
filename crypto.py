@@ -70,7 +70,7 @@ def non_ephemeral_DH():
     server_shared_key = server_private_key.exchange(device_private_key.public_key())
     print("server_shared_key",server_shared_key)
 
-#non_ephemeral_DH()
+non_ephemeral_DH()
 
 
 

@@ -36,8 +36,9 @@ def connect( server, port ):
 
 # TODO: SEPARATE TASKS in commands
 # - Register new device
-# - List devices
+# - List devices / topics
 # - Remove devices
+# - Escuchar todos los topics 
 # - Select and Read from an specific topic / device
 # - Run web platform
 

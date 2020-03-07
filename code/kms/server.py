@@ -1,6 +1,6 @@
 #!flask/bin/python
 import paho.mqtt.client as mqtt
-from flask import Flask
+from flask import Flask, request, abort, jsonify
 import threading
 import click
 import time
@@ -8,17 +8,20 @@ import time
 KEY_ID = "keyManagementSystem"
 KEY_SECRET = "KMS-MUII"
 
-topicsPublishNewKeys = []
-secretRegisteredDevices = []
+topicsPublishNewKeys = {}
+secretRegisteredDevices = {}
 
 app = Flask(__name__)
  
 class FlaskThread( threading.Thread ):
 
-    @app.route('/')
-    def index():
+    @app.route('/register-device', methods=['POST'])
+    def register():
+        if not request.json or not 'id' in request.json:
+            abort(400)
 
-        return "{ \"Hello\": \"World!\" }"
+        topicsPublishNewKeys[request.json["id"]] = request.json['key_topic']
+        return jsonify({"key_topics": topicsPublishNewKeys}), 201
 
     # TODO: Add new Registered Device
 
@@ -55,8 +58,10 @@ def connect( server, port ):
     
     while True:    
         # TODO: Reset keys after a while for each device
-        client.publish( "KEYS", "HEY, I'M A KEY", 2 ) # TODO: Publish in different topics
-        time.sleep(30)
+        for device, topic in topicsPublishNewKeys.items():
+            print( device, '->', topic )
+            client.publish( topic, "HEY, I'M A KEY", 0 ) # TODO: Publish in different topics
+        time.sleep(10)
 
 if __name__ == '__main__':
     connect()

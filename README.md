@@ -14,7 +14,7 @@ These are the task we are going into during this project:
 
 - [ ] **CLI for Devices**:
   - [ ] *Authentication and Registration algorithms* used to connect to the platform via MQTT:
-    - [ ] Algorithm to connect an IoT Device without Input nor Output - only the Internet connection as output, and sensor values as inputs.
+    - [x] Algorithm to connect an IoT Device without Input nor Output - only the Internet connection as output, and sensor values as inputs.
     - [ ] Algorithm to connect an IoT Device with Input - such as a keyboard.
     - [ ] Algorithm to connect an IoT Device with Output - a kind of display.
   - [ ] *Supported Crypto Algorithms*:
@@ -31,7 +31,7 @@ These are the task we are going into during this project:
       - [ ] HMAC DH.
       - [ ] ECDH.
 - [ ] **KMS**:
-  - [ ] *Register a device into KMS*.
+  - [x] *Register a device into KMS*.
   - [ ] *Key Rotation*. Send keys to device according to the specified symmetric algorithm:
     - [ ] **Fernet**:
       - [ ] Simple key
@@ -44,7 +44,7 @@ These are the task we are going into during this project:
   - [ ] Provide the current key for all devices.
 - [ ] **Platform**:
   - [ ] *CLI*:
-    - [ ] Register new device.
+    - [x] Register new device.
     - [ ] List devices / Topics.
     - [ ] Remove devices.
     - [ ] Subscribe and read from an specific topic:

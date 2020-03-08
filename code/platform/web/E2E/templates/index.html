@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        {% load static %}
+        <meta charset="utf-8">
+        <title>E2E</title>
+        <meta name="description" content="" />
+        
+        <!-- JQuery -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+        <!-- Bootstrap -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+        <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+        <!-- SweetAlert2 -->
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@9"></script>
+        <!-- .shiftr.io -->
+        <script src="https://assets.shiftr.io/js/mqtt-2.9.0.js"></script>
+
+    </head>
+    <body style="background-color: #e2f0fb">
+        <div class="main">
+        <div class="container">
+        <h1 align="center" style="margin-top:25px;">End to End</h1>
+        <div class="row justify-content-md-center bg-primary text-white" align="center" style="font-size:24px;margin-top:20px">
+        <div class="col col-lg-3">
+            <button class="btn btn-primary" style="font-size:24px" onclick="activeDiv('registerForm')">  Register new device </button>
+        </div>
+        <div class="col col-lg-3 ">
+           <button class="btn btn-primary " style="font-size:24px" onclick="activeDiv('deviceList')">  List devices/topics </button>
+        </div>
+        <div class="col col-lg-3">
+         <button class="btn btn-primary" style="font-size:24px" onclick="Swal.fire({icon: 'success',title: 'You are listening all topics', showConfirmButton: false,timer: 1500});">  Listen all topics </button>
+        </div>
+        </div>
+      
+        <div id="registerForm" name="registerForm" >
+        <form>
+        <div class="row justify-content-md-center" style="margin-top:25px">
+            <div class="col col-sm-3" style="text-align:right;font-size:22px">
+            <label for="device">select device type</label>
+            </div>
+            <div class="col-md-auto">
+                <select id="device" class="form-control">
+                    <option value="0">Has neither output nor input device</option>
+                    <option value="1">Has output device</option>
+                    <option value="2">Has input  device</option>
+                </select>
+            </div>
+        </div>
+        <div class="row justify-content-md-center">
+         <button type="submit" style ="margin-top:20px"class="btn btn-primary">Submit</button>
+         </div>       
+        </form>
+         <div class="row justify-content-md-center" style ="margin-top:20px;">
+         <iframe src="https://shiftr.io/ruiz14/e2e-encryption/embed?zoom=1" width="600" height="400" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen allowtransparency="true"></iframe>
+        </div>
+        </div>
+        <div id="deviceList" name="deviceList" style="display:none">
+            <table  class="table table-striped table-light table-bordered" style=" text-align: center">
+                <tr >
+                    <th>Devices</th>
+                    <th>Topics</th>
+                    <th>Delete</th>
+                </tr>
+                <tr>
+                    <td> Device 1 </td>
+                    <td> Topic 1</td>
+                    <td> <button type="button" class="btn btn-danger">Unsynchronize</button></td>
+                </tr>
+                 <tr>
+                    <td> Device 2 </td>
+                    <td> Topic 2 </td>
+                    <td> <button type="button" class="btn btn-danger">Unsynchronize</button></td>
+                </tr>
+            <table>
+
+        </div>
+        </div> 
+
+        </div>
+    </body>
+
+    <script>
+    function activeDiv(div){
+        var divList = ["registerForm", "deviceList"];
+        for(var cadena in divList){
+          // alert(divList[cadena]);
+            if(div == divList[cadena]){
+               document.getElementById(divList[cadena]).style.display = "block";
+               
+         
+            }else{
+                 document.getElementById(divList[cadena]).style.display = "none";
+                 
+            }
+        }
+    }
+    </script>
+
+
+
+</html>

@@ -16,6 +16,10 @@ registration_attemp    = ""
 deviceAttemp = False
 deviceConnected = False
 
+DevicesList =[] # List of devices
+TopicsList =[] # List of topics
+
+
 def on_connect( client, userdata, flags, rc ):
 
   print( "Platform is ready to work." )
@@ -148,17 +152,61 @@ def connect( server, port, user, password ):
   while True:      # Keep Platform listening.
       time.sleep( 10 )
 
+
+@click.command()
+@click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send keys." )
+@click.option( '-p', '--port', 'port', required=True, type=int, show_default=True, default=1883, help="Port of theMQTT Server to send keys." )
+@click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Server." )
+@click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
+def getKeyFromKMS( server, port, user, password ):
+      #TODO: Use de log in as other methods
+  KMS_SERVER_URL = "http://127.0.0.1:5000/new-key"
+  request_message = requests.get( KMS_SERVER_URL, auth=( user, password ) )
+  print( "Device successfully added to KMS: ", request_message.json() )
+
+
+@click.command()
+def getDevicesList():
+    #TODO: Use de log in as the other methods
+    with open('registeredDevices.json') as json_file:
+      data = json.load(json_file)
+      for p in data:
+        print(p)
+        DevicesList.append(p)
+    return DevicesList
+
+@click.command()
+def getTopicsList():
+    #TODO: Use de log in as the other methods
+    with open('registeredDevices.json') as json_file:
+      data = json.load(json_file)
+      for p in data:
+          #print(data[p]['data_topic'])
+          TopicsList.append(data[p]['data_topic'])
+    return TopicsList
+  
+@click.command()
+def startWebService():
+    os.system("python ../web/manage.py runserver")  
+
+
+
+
 # TODO: SEPARATE TASKS in commands
 # - [x] Register new device.
-# - [ ] List devices / topics.
+# - [x] List devices / topics. CUIDADO (REVISAR, HECHO POR FERNANDO ;') 
 # - [ ] Remove devices from list and KMS.
 # - [ ] Escuchar todos los topics.
 # - [ ] Select and Read from an specific topic / device.
-# - [ ] Run web platform (?)
+# - [x] Run web platform (?) CUIDADO (REVISAR, HECHO POR FERNANDO ;')
 
 if __name__ == '__main__':
   # This main process include the commands for the platform cli.
   # If you need help, run: `python e2e.py --help`
   cli.add_command( connect )
   cli.add_command( register )
+  cli.add_command( getKeyFromKMS )
+  cli.add_command(getDevicesList)
+  cli.add_command(getTopicsList)
+  cli.add_command(startWebService)  
   cli()

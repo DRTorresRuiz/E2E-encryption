@@ -31,12 +31,6 @@ def on_message( client, userdata, msg ):
       data_topic = connection_config["data_topic"]
       key_management_topic = connection_config["key_topic"]
       # TODO: Check other params to ensure connection with platform.
-      client.subscribe( key_management_topic ) # Start subscription to KMS
-      new_msg = {
-        # Build message of confirmation
-        "id": userdata["id"]
-      }
-      client.publish( REGISTRATION_TOPIC, json.dumps( new_msg ) ) # Confirmation message to the platform.
       synchronized=True
   
 def connection_request( client, userdata ):
@@ -74,6 +68,13 @@ def sync_noIO( client, userdata ):
     # If the platform has given a correct answer, the
     # device will start to send data.
     connected = True
+    # Subscribe to key_management_topic and send message of confirmation.
+    client.subscribe( key_management_topic ) # Start subscription to KMS
+    confimation_message = {
+      # Build message of confirmation
+      "id": userdata["id"]
+    }
+    client.publish( REGISTRATION_TOPIC, json.dumps( confimation_message ) ) # Confirmation message to the platform.
     print( "Successfully connected." )
 
 def sync_I( client, userdata ):

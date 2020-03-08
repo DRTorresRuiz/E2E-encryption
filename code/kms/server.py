@@ -17,7 +17,7 @@ auth                    = HTTPBasicAuth()
 class FlaskThread( threading.Thread ):
 
     @auth.get_password
-    def get_password( self, username ):
+    def get_password( username ):
         # Ref: https://blog.miguelgrinberg.com/post/designing-a-restful-api-with-python-and-flask
         # TODO-MAYBE: Token Authentication method (?) https://realpython.com/python-random/#osurandom-about-as-random-as-it-gets
         if username == "platform":
@@ -27,7 +27,7 @@ class FlaskThread( threading.Thread ):
        
     @app.route( '/register-device', methods=['POST'] )
     @auth.login_required
-    def register( self ):
+    def register( ):
         # TODO: Create a file to include registeredDevices
         if not request.json or not 'id' in request.json: abort( 400 )
 
@@ -35,11 +35,11 @@ class FlaskThread( threading.Thread ):
         return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
         
     @auth.error_handler
-    def unauthorized( self ):
+    def unauthorized( ):
         return make_response( jsonify( {'error': 'Unauthorized access'} ), 401 )
 
     @app.errorhandler( 404 )
-    def not_found( self, error ):
+    def not_found( error ):
         return make_response( jsonify( {'error': 'Not found'} ), 404 )
      
     def run( self ):

@@ -101,21 +101,29 @@ pip install -r requirements.txt
 ### Devices
 
 ```bash
-python code/device/connect_device.py -u device-IoT # A prompt will appear to introduce the password
+python code/device/device.py connect -u <DEVICE_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <DEVICE_PASSWORD>`
 ```
 
 ### KMS
 
 ```bash
-python code/kms/server.py -u keyManagementSystem
+python code/kms/server.py connect -u <KMS_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <KMS_PASSWORD>`
 ```
 
 ### Platform
 
 #### CLI
 
+To register a device run:
+
 ```bash
-python code/platform/cli/e2e.py
+python code/platform/cli/e2e.py register -u <PLATFORM_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <PLATFORM_PASSWORD>`
+```
+
+This command will listen all topics included in the `registeredDevices.json` file:
+
+```bash
+python code/platform/cli/e2e.py connect -u <PLATFORM_ID> # A prompt will appear to introduce the password
 ```
 
 #### Web Service

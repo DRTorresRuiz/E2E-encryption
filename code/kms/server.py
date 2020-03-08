@@ -46,6 +46,7 @@ class FlaskThread( threading.Thread ):
         app.run()
     
     @app.route( '/new-key', methods=['GET'] )
+    @auth.login_required
     def sendKey():   
         #TODO: Use the function to generate the new key
         API_KEY="Esto es una nueva clave"

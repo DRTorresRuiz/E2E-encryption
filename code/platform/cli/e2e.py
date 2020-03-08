@@ -16,8 +16,6 @@ registration_attemp    = ""
 deviceAttemp = False
 deviceConnected = False
 
-DevicesList =[] # List of devices
-TopicsList =[] # List of topics
 
 
 def on_connect( client, userdata, flags, rc ):
@@ -164,7 +162,6 @@ def getKeyFromKMS( server, port, user, password ):
   request_message = requests.get( KMS_SERVER_URL, auth=( user, password ) )
   print( "Device successfully added to KMS: ", request_message.json() )
 
-
 @click.command()
 def getDevicesList():
     #TODO: Use de log in as the other methods
@@ -172,8 +169,6 @@ def getDevicesList():
       data = json.load(json_file)
       for p in data:
         print(p)
-        DevicesList.append(p)
-    return DevicesList
 
 @click.command()
 def getTopicsList():
@@ -181,15 +176,8 @@ def getTopicsList():
     with open('registeredDevices.json') as json_file:
       data = json.load(json_file)
       for p in data:
-          #print(data[p]['data_topic'])
-          TopicsList.append(data[p]['data_topic'])
-    return TopicsList
+          print(data[p]['data_topic'])
   
-@click.command()
-def startWebService():
-    os.system("python ../web/manage.py runserver")  
-
-
 
 
 # TODO: SEPARATE TASKS in commands
@@ -207,6 +195,5 @@ if __name__ == '__main__':
   cli.add_command( register )
   cli.add_command( getKeyFromKMS )
   cli.add_command(getDevicesList)
-  cli.add_command(getTopicsList)
-  cli.add_command(startWebService)  
+  cli.add_command(getTopicsList)  
   cli()

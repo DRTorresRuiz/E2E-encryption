@@ -74,6 +74,15 @@
                     <td> Topic 2 </td>
                     <td> <button type="button" class="btn btn-danger">Unsynchronize</button></td>
                 </tr>
+               {% if listDeviceTopic %}
+                    {% for k,v in listDeviceTopic.items  %}
+                    <tr>
+                       <td> {{ k }} </td>                    
+                       <td> {{ v }} </td>  
+                       <td> <button type="button" class="btn btn-danger">Unsynchronize</button></td>   
+                    </tr>
+                     {% endfor %}
+                {% endif %}
             <table>
 
         </div>

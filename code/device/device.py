@@ -65,9 +65,6 @@ def sync_noIO( client, userdata ):
     time.sleep( 10 )
   client.unsubscribe( REGISTRATION_TOPIC )
   if synchronized: 
-    # If the platform has given a correct answer, the
-    # device will start to send data.
-    connected = True
     # Subscribe to key_management_topic and send message of confirmation.
     client.subscribe( key_management_topic ) # Start subscription to KMS
     confimation_message = {
@@ -75,6 +72,9 @@ def sync_noIO( client, userdata ):
       "id": userdata["id"]
     }
     client.publish( REGISTRATION_TOPIC, json.dumps( confimation_message ) ) # Confirmation message to the platform.
+    # If the platform has given a correct answer, the
+    # device will start to send data.
+    connected = True
     print( "Successfully connected." )
 
 def sync_I( client, userdata ):

@@ -25,6 +25,40 @@ def on_message( client, userdata, msg ):
   # Receiving from all topics.
   print( msg.topic + " " + str( msg.payload ) )
 
+def sync_noIO( client, attemp ):
+  # Request message received from an external Device.
+  global deviceAttemp
+  global registration_attemp
+
+  registration_attemp = attemp
+  deviceAttemp = True
+  
+  new_msg = {
+    "id": CLIENT_ID,
+    "data_topic": "data-" + registration_attemp.get( "id" ) + "-" + str( round( random() * 1000000 ) ),
+    "key_topic": "key-" + registration_attemp.get( "id" ) + "-" + str( round( random() * 1000000 ) )
+  }
+  registration_attemp["data_topic"] = new_msg["data_topic"]
+  registration_attemp["key_topic"] = new_msg["key_topic"]
+  client.publish( REGISTRATION_TOPIC, json.dumps( new_msg ) )
+  print( "Data sent to device." )
+
+def sync_I( client, attemp ):
+  # Request message received from an external Device.
+  global deviceAttemp
+  global registration_attemp
+
+  registration_attemp = attemp
+  deviceAttemp = True
+  
+def sync_O( client, attemp ):
+  # Request message received from an external Device.
+  global deviceAttemp
+  global registration_attemp
+
+  registration_attemp = attemp
+  deviceAttemp = True
+  
 def on_message_register( client, userdata, msg ):
   # Method used to registration process of a device.
   global deviceConnected
@@ -35,20 +69,18 @@ def on_message_register( client, userdata, msg ):
   if attemp.get( "id", CLIENT_ID ) != CLIENT_ID:
     # TODO: Compare parameters of the request to see if it is a rightful device.
     if not deviceAttemp and not deviceConnected and msg.topic == REGISTRATION_TOPIC: 
-      # Request message received from an external Device.
-      deviceAttemp = True
-      registration_attemp = attemp
-      new_msg = {
-        "id": CLIENT_ID,
-        "data_topic": "data-" + registration_attemp.get( "id" ) + "-" + str( round( random() * 1000000 ) ),
-        "key_topic": "key-" + registration_attemp.get( "id" ) + "-" + str( round( random() * 1000000 ) )
-      }
-      registration_attemp["data_topic"] = new_msg["data_topic"]
-      registration_attemp["key_topic"] = new_msg["key_topic"]
-      client.publish( REGISTRATION_TOPIC, json.dumps( new_msg ) )
-      print( "Data sent to device." )
+      # Follow a sync process depending on type of the device.
+      if attemp.get("type") == "noIO":
+        
+        sync_noIO( client, attemp )
+      elif attemp.get("type") == "I":
+        
+        sync_I( client, attemp )
+      elif attemp.get("type") == "O":
+
+        sync_O( client, attemp )
     elif deviceAttemp and not deviceConnected and msg.topic == REGISTRATION_TOPIC: deviceConnected=True
-  else: print( "Discarting registration request: " + registration_attemp )
+  else: print( "Discarting registration request: " + attemp )
 
 def connect_MQTT( server, port, user, password, message_handler ):
   # Make the connection to the MQTT Server.

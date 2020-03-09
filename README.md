@@ -13,10 +13,10 @@ The `code` folder contains the code for the platform ( CLI and Web Platform ), t
 These are the task we are going into during this project:
 
 - [ ] **CLI for Devices**:
-  - [ ] *Authentication and Registration algorithms* used to connect to the platform via MQTT:
+  - [x] *Authentication and Registration algorithms* used to connect to the platform via MQTT:
     - [x] Algorithm to connect an IoT Device without Input nor Output - only the Internet connection as output, and sensor values as inputs.
-    - [ ] Algorithm to connect an IoT Device with Input - such as a keyboard.
-    - [ ] Algorithm to connect an IoT Device with Output - a kind of display.
+    - [x] Algorithm to connect an IoT Device with Input - such as a keyboard.
+    - [x] Algorithm to connect an IoT Device with Output - a kind of display.
   - [ ] *Supported Crypto Algorithms*:
     - [ ] *Symmetric*. To send data to the platform via public MQTT topics:
       - [ ] **Fernet**:
@@ -58,7 +58,7 @@ These are the task we are going into during this project:
           - [ ] E&A
         - [ ] TripleDES.
     - [ ] Subscribe and read from all topics at the same time:
-      - [ ] Subscribe to all topics listed.
+      - [x] Subscribe to all topics listed.
       - [ ] Read data from all topics - this should ask KMS for diferrent keys:
         - [ ] Simple key.
           - [ ] Multi-keys.

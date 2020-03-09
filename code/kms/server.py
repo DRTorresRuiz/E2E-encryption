@@ -49,6 +49,13 @@ class FlaskThread( threading.Thread ):
     def not_found( error ):
         return make_response( jsonify( {'error': 'Not found'} ), 404 )
      
+    # TODO: SEPARATE TASKS in routes
+    # - [x] Register new device.
+    # - [ ] TODO: Send keys to all topics.
+    # - [ ] TODO: Remove devices.
+    # - [ ] TODO: Send a specific key to the platform.
+    # - [ ] TODO: Send all keys to the platform.
+    
     def run( self ):
         app.run()
 

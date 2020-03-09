@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 from datetime import datetime
-from random import random # Generate random numbers 
+from random import random
 import click
 import json
 import time
@@ -27,13 +27,20 @@ def on_message( client, userdata, msg ):
   if msg.topic == key_management_topic: # Rotation Key Topic
     # TODO: Replace symmetric key.
     print( msg.topic + " " + str( msg.payload ) )
+  elif msg.topic == data_topic:
+    # TODO: Platform will sent a message through this channel
+    # to let device know that has been removed from the platform.
+    # TODO: If removed, data_topic will be again "". And `connected` 
+    # variable will be FALSE to stop sending values.
+    # TODO: If removed, key_management_topic will also be set to "" and
+    # the subscription to this topic should stop.
+    print( msg.topic + " " + str( msg.payload ) )
   elif msg.topic == REGISTRATION_TOPIC: # Accept and Config Parameters Connection Topic
     # TODO: Make sure the data is sent by the platform.
     connection_config = json.loads( str( msg.payload.decode("utf-8") ) )
     if connection_config.get( "id", userdata["id"] ) != userdata["id"]: # Not reading data that this device sent. Avoiding loops.
       print( connection_config )
       if authenticated:
-        print( "2,", connection_config )
         # Establish data_topic and key_management
         data_topic = connection_config["data_topic"]
         key_management_topic = connection_config["key_topic"]
@@ -41,7 +48,6 @@ def on_message( client, userdata, msg ):
         synchronized=True
       elif not authenticated and connection_config.get("code", "") != "": 
         # Receive output message.
-        print( "2,", connection_config )
         if int( connection_config.get("code", 0) ) == verificationCode:
           new_message = {
             "id": userdata["id"],

@@ -249,11 +249,10 @@ def connect( server, port, user, password ):
 
 # TODO: SEPARATE TASKS in commands
 # - [x] Register new device.
-# - [ ] List devices / topics.
-# - [ ] Remove devices from list and KMS.
-# - [ ] Escuchar todos los topics.
-# - [ ] Select and Read from an specific topic / device.
-# - [ ] Run web platform (?)
+# - [ ] TODO: List devices / topics.
+# - [ ] TODO: Remove devices from list and KMS.
+# - [x] Escuchar todos los topics.
+# - [ ] TODO: Select and Read from an specific topic / device.
 
 if __name__ == '__main__':
   # This main process include the commands for the platform cli.

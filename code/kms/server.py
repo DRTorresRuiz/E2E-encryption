@@ -5,8 +5,11 @@ import paho.mqtt.client as mqtt
 import threading
 import click
 import time
+import json
+import os
 
 CLIENT_ID               = "kms-muii"
+TOPIC_FILE = 'registeredDeviceTopics.json'
 
 topicsPublishNewKeys    = {}
 secretRegisteredDevices = {}
@@ -28,10 +31,14 @@ class FlaskThread( threading.Thread ):
     @app.route( '/register-device', methods=['POST'] )
     @auth.login_required
     def register( ):
-        # TODO: Create a file to include registeredDevices
-        if not request.json or not 'id' in request.json: abort( 400 )
+        global topicsPublishNewKeys
 
+        if not request.json or not 'id' in request.json: abort( 400 )
+        
         topicsPublishNewKeys[request.json["id"]] = request.json['key_topic']
+        # Save into `registeredDeviceTopics.json` file
+        with open( TOPIC_FILE, 'w' ) as file:
+            json.dump( topicsPublishNewKeys, file, indent=4 )
         return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
         
     @auth.error_handler
@@ -57,6 +64,18 @@ def start_flask():
     flaskThread.daemon = True # Need to be a daemon to close it with Ctrl+C
     flaskThread.start()
 
+def load_registered_device_topics():
+    # Load from the `registerDeviceTopics.json` file to get the topics
+    # where to publish the keys for a device. If the file does not exit, 
+    # it will be created.
+    if not os.path.exists( TOPIC_FILE ):
+        # If file does not exit, it will be created.
+        with open( TOPIC_FILE, 'w') as file: file.write("{}") 
+    with open( TOPIC_FILE ) as file:
+        # Group previous devices registered
+        data = json.load( file )
+    return data 
+
 @click.group()
 def cli():
     pass
@@ -70,7 +89,14 @@ def connect( server, port, user, password ):
     """
         Start KMS. It will start the RESTful at port 5000 and start the Key Rotation process.
     """
-    start_flask() 
+    global topicsPublishNewKeys
+    global secretRegisteredDevices
+
+    start_flask()  
+    # Load the information saved of the registered devices.
+    topicsPublishNewKeys = load_registered_device_topics()
+    print(topicsPublishNewKeys)
+    #secretRegisteredDevices = load_registered_device_secrets()
     # Connect to MQTT Server.    
     client = mqtt.Client( client_id=CLIENT_ID )
     client.on_connect = on_connect

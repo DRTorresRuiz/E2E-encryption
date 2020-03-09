@@ -95,7 +95,6 @@ def connect( server, port, user, password ):
     start_flask()  
     # Load the information saved of the registered devices.
     topicsPublishNewKeys = load_registered_device_topics()
-    print(topicsPublishNewKeys)
     #secretRegisteredDevices = load_registered_device_secrets()
     # Connect to MQTT Server.    
     client = mqtt.Client( client_id=CLIENT_ID )

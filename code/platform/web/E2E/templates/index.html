@@ -20,21 +20,47 @@
 
     </head>
     <body style="background-color: #e2f0fb">
+    <nav class="navbar navbar-expand-lg navbar-dark text-white bg-primary">
+  <a class="navbar-brand" href="#">End to End</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+    <li class="nav-item dropdown active">
+    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        Actions
+    </a>
+    <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+        <a class="dropdown-item" href="#" onclick="activeDiv('registerForm')">Register device</a>
+        <a class="dropdown-item" href="#" onclick="activeDiv('deviceList')">List devices/topics</a>
+        <a class="dropdown-item" href="#"  onclick="Swal.fire({icon: 'success',title: 'You are listening all topics', showConfirmButton: false,timer: 2500});">Listen all topics</a>
+    </div>
+    </li>
+      <li class="nav-item active">
+        <a class="nav-link" href="#" >Instructions</a>
+      </li>
+
+    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <button class="btn btn-outline-light my-2 my-sm-0" type="button" onclick="Swal.fire({
+          icon: 'question',
+          title: 'Do you need some help?',
+          confirmButtonText: 'Understood!',
+          html : '<b>Click on actions and select:</b></br>-Register a new device </br>-Get the list with devices </br>-Topics or listen all topics'
+      } )">Help</button>
+    </form>
+  </div>
+</nav>
         <div class="main">
         <div class="container">
         <h1 align="center" style="margin-top:25px;">End to End</h1>
-        <div class="row justify-content-md-center bg-primary text-white" align="center" style="font-size:24px;margin-top:20px">
-        <div class="col col-lg-3">
-            <button class="btn btn-primary" style="font-size:24px" onclick="activeDiv('registerForm')">  Register new device </button>
-        </div>
-        <div class="col col-lg-3 ">
-           <button class="btn btn-primary " style="font-size:24px" onclick="activeDiv('deviceList')">  List devices/topics </button>
-        </div>
-        <div class="col col-lg-3">
-         <button class="btn btn-primary" style="font-size:24px" onclick="Swal.fire({icon: 'success',title: 'You are listening all topics', showConfirmButton: false,timer: 1500});">  Listen all topics </button>
-        </div>
-        </div>
-      
+        <!--<button class="btn btn-primary" type="button">
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        <span class="sr-only"></span> Loading..
+        </button>-->
+        
         <div id="registerForm" name="registerForm" >
         <form>
         <div class="row justify-content-md-center" style="margin-top:25px">
@@ -79,7 +105,8 @@
                     <tr>
                        <td> {{ k }} </td>                    
                        <td> {{ v }} </td>  
-                       <td> <button type="button" class="btn btn-danger">Unsynchronize</button></td>   
+                       <td> <button type="button" class="btn btn-danger">Unsynchronize</button></td>
+                       <!--Eliminar del fichero y del kms-->   
                     </tr>
                      {% endfor %}
                 {% endif %}
@@ -87,6 +114,8 @@
 
         </div>
         </div> 
+        </div>
+        </div>
 
         </div>
     </body>

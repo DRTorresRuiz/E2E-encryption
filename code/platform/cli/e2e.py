@@ -78,23 +78,29 @@ def on_message_register( client, userdata, msg ):
       registration_attemp = attemp 
       deviceAttemp = True
 
-      if registration_attemp["type"] == "noIO": authenticated = True
+      if registration_attemp["type"] == "noIO": inputType = False
       elif registration_attemp["type"] == "I": inputType = True
       elif registration_attemp["type"] == "O": inputType = False
 
-      if not authenticated:
-        if inputType:
-          verificationCode = round( random() * 1000000 )
-          print( "Introduce this code into your device: ", str( verificationCode ) )
-        else:
-          # Output Device authentication process
-          code = input( "Enter the code provided by the device: " )
-          new_message = {
-            "id": CLIENT_ID,
-            "code": code
-          }
-          client.publish( REGISTRATION_TOPIC, json.dumps( new_message ) )
-          print( "Message sent. Waiting for confirmation." )
+      # Send information for DH negotiation Key
+      new_message = {
+        "id": CLIENT_ID,
+        "infoKeys": "Hi, I am not a key."
+      }
+      client.publish( REGISTRATION_TOPIC, json.dumps( new_message ) )
+
+      if inputType:
+        verificationCode = round( random() * 1000000 )
+        print( "Introduce this code into your device: ", str( verificationCode ) )
+      else:
+        # Output Device authentication process
+        code = input( "Enter the code provided by the device: " )
+        new_message = {
+          "id": CLIENT_ID,
+          "code": code
+        }
+        client.publish( REGISTRATION_TOPIC, json.dumps( new_message ) )
+        print( "Message sent. Waiting for confirmation." )
     elif deviceAttemp and attemp.get( "id", "" ) == registration_attemp["id"]:
       if not authenticated:
         if inputType:
@@ -247,6 +253,16 @@ def connect( server, port, user, password ):
   while True:      # Keep Platform listening.
       time.sleep( 10 )
 
+@click.command()
+def list_devices():
+  filename = 'registeredDevices.json'
+  if os.path.exists( filename ):
+    with open( filename ) as file:
+
+      data = json.load( file )
+      for key, value in data.items():
+        print( "Device: ", key, " -> {\n\tData topic: ", value["data_topic"], "\n}" )
+
 # TODO: SEPARATE TASKS in commands
 # - [x] Register new device.
 # - [ ] TODO: List devices / topics.
@@ -259,4 +275,5 @@ if __name__ == '__main__':
   # If you need help, run: `python e2e.py --help`
   cli.add_command( connect )
   cli.add_command( register )
+  cli.add_command( list_devices )
   cli()

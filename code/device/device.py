@@ -13,6 +13,7 @@ connected              = False                                             # If 
 synchronized           = False                                             # If it has finished the process of connection
 authenticated          = False
 authFailed             = False
+firstKeyNegotiated     = False
 verificationCode       = 0
 
 def on_message( client, userdata, msg ):
@@ -23,6 +24,7 @@ def on_message( client, userdata, msg ):
   global authFailed
   global data_topic
   global key_management_topic
+  global firstKeyNegotiated
   
   if msg.topic == key_management_topic: # Rotation Key Topic
     # TODO: Replace symmetric key.
@@ -46,7 +48,11 @@ def on_message( client, userdata, msg ):
         key_management_topic = connection_config["key_topic"]
         # TODO: Check other params to ensure connection with platform.
         synchronized=True
-      elif not authenticated and connection_config.get("code", "") != "": 
+      elif not authenticated and connection_config.get( "infoKeys", "" ) != "":
+        # TODO: Save key to encrypt.
+        print( connection_config )
+        firstKeyNegotiated = True
+      elif not authenticated and connection_config.get( "code", "" ) != "": 
         # Receive output message.
         if int( connection_config.get("code", 0) ) == verificationCode:
           new_message = {
@@ -85,8 +91,18 @@ def connection_process( client, userdata ):
   global synchronized
   global key_management_topic
 
-  # Wait answer from the platform in the REGISTRATION TOPIC.
+  
   client.subscribe( REGISTRATION_TOPIC )
+  # Waiting for first key
+  now = datetime.now()
+  difference = 0
+  print( "Negotiating key..." )
+  while not firstKeyNegotiated and difference < 120:
+
+    difference = ( datetime.now() - now ).total_seconds()
+    time.sleep( 1 )
+
+  # Wait answer from the platform in the REGISTRATION TOPIC.
   now = datetime.now()
   difference = 0
   print( "Attempting to connect..." )
@@ -114,13 +130,28 @@ def sync_noIO( client, userdata ):
   # Synchronization process for devices without input nor output methods.
   global synchronized
   global authenticated
+  global verificationCode
   global connected
 
   connection_request( client, userdata ) # Send to request to be registered in the platform. And so, start the sync process.
 
-  authenticated = True
+  client.subscribe( REGISTRATION_TOPIC )
+  verificationCode = 000000
+  # print( "Introduce this code into your device: ", str( verificationCode ) )
 
-  connection_process( client, userdata )
+  now = datetime.now()
+  difference = 0
+  print( "Waiting input code from the platform..." )
+  while not authenticated and not authFailed and difference < 120:
+
+    difference = ( datetime.now() - now ).total_seconds()
+    time.sleep( 1 )
+  client.unsubscribe( REGISTRATION_TOPIC )
+
+  if authenticated and not authFailed:
+    connection_process( client, userdata )
+  elif authFailed:
+    print( "Process of authentication has failed. Bad code. Try again." )
 
 def sync_I( client, userdata ):
   # Synchronization process for devices with an input method.

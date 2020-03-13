@@ -3,9 +3,13 @@ from cryptography.fernet import Fernet, MultiFernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
-from Crypto.Cipher import DES3
+from Crypto.Cipher import DES3, ChaCha20_Poly1305
 from Crypto.Random import get_random_bytes
 from Crypto import Random
+
+import json
+from base64 import b64encode, b64decode
+from Crypto.Random import get_random_bytes
 
 import os
 import binascii
@@ -59,6 +63,8 @@ def fernetPrint(token):
     print ("Cypher:\t\t",cipher[50:-64].decode("utf-8"))
     print ("HMAC:\t\t",cipher[-64:].decode("utf-8"))
 
+
+# Deprecated alghoritm
 def tripleDESGenKey():
     key = DES3.adjust_key_parity(get_random_bytes(24))
     iv = Random.new().read(DES3.block_size)
@@ -76,6 +82,7 @@ def tripleDESDecryption(key, encryptedMsg, iv):
     print("3DES decripted msg:", decryptedMsg.decode("utf-8"))
     return decryptedMsg.decode("utf-8")
     
+# Chacha20 without authenticator
 def chacha20GenKey():
     key = os.urandom(32)
     nonce = os.urandom(16)
@@ -94,6 +101,34 @@ def chacha20Decrypt(cipher, encryptedMsg):
     msg = decryptor.update(encryptedMsg)
     print("Chacha20 decripted msg:",msg.decode("utf-8"))
     return msg.decode("utf-8")
+
+# Chacha20 with Poly1305 authenticator, Authenticated Encryption with Associated Data (AEAD) algorithm.
+
+
+def chacha20P1305GenKey():    
+    key = get_random_bytes(32)
+    return key
+
+def chacha20P1305Encrypt(key, msg, header):
+    cipher = ChaCha20_Poly1305.new(key=key)
+    cipher.update(header)
+    ciphertext, tag = cipher.encrypt_and_digest(msg)
+    jk = [ 'nonce', 'header', 'ciphertext', 'tag' ]
+    jv = [ b64encode(x).decode('utf-8') for x in (cipher.nonce, header, ciphertext, tag) ]
+    encData = json.dumps(dict(zip(jk, jv)))
+    print("Encripted data", encData)
+    return encData
+
+def chacha20P1305Decrypt(key, encData):    
+    b64 = json.loads(encData)
+    jk = [ 'nonce', 'header', 'ciphertext', 'tag' ]
+    jv = {k:b64decode(b64[k]) for k in jk}
+
+    cipher = ChaCha20_Poly1305.new(key=key, nonce=jv['nonce'])
+    cipher.update(jv['header'])
+    plaintext = cipher.decrypt_and_verify(jv['ciphertext'], jv['tag'])
+    print("Chacha20 decripted msg:",plaintext.decode("utf-8"))
+
 
 # Diffie Hellman 
 def non_ephemeral_DH():
@@ -122,7 +157,16 @@ def non_ephemeral_DH():
     # here we need to recive device public_key
     server_shared_key = server_private_key.exchange(device_private_key.public_key())
     print("server_shared_key",binascii.hexlify(bytearray(server_shared_key)).decode("utf-8"))
-    
+
+
+"""  # Test chacha20Polly1305
+header = b"header"
+msg = b'Test chacha20Polly1305'
+
+key = chacha20P1305GenKey()
+encData = chacha20P1305Encrypt(key, msg, header)
+chacha20P1305Decrypt(key, encData)   """
+
 """ # chacha20 Test
 m = b"test encriptacion chacha20 "
 c = chacha20GenKey()

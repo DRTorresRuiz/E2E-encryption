@@ -41,6 +41,21 @@ class FlaskThread( threading.Thread ):
             json.dump( topicsPublishNewKeys, file, indent=4 )
         return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
         
+    @app.route( '/remove-device', methods=['POST'] )
+    @auth.login_required
+    def remove( ):
+        global topicsPublishNewKeys
+
+        if not request.json or not 'id' in request.json: abort( 400 )
+        
+        # TODO: Contorl that the id exists.
+        del topicsPublishNewKeys[request.json["id"]]
+        del secretRegisteredDevices[request.json["id"]]
+        # Save into `registeredDeviceTopics.json` file
+        with open( TOPIC_FILE, 'w' ) as file:
+            json.dump( topicsPublishNewKeys, file, indent=4 )
+        return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
+        
     @auth.error_handler
     def unauthorized( ):
         return make_response( jsonify( {'error': 'Unauthorized access'} ), 401 )
@@ -52,7 +67,7 @@ class FlaskThread( threading.Thread ):
     # TODO: SEPARATE TASKS in routes
     # - [x] Register new device.
     # - [ ] TODO: Send keys to all topics.
-    # - [ ] TODO: Remove devices.
+    # - [x] Remove devices.
     # - [ ] TODO: Send a specific key to the platform.
     # - [ ] TODO: Send all keys to the platform.
     
@@ -83,6 +98,20 @@ def load_registered_device_topics():
         data = json.load( file )
     return data 
 
+def send( client, msg ):
+    # This function sends a message to an specified topic.
+    # Returns True if message was sent correctly, otherwise False. 
+    # The `msg` need to include the `topic` parameter.
+    topic = msg.get( "topic", "" )
+    if topic != "":
+
+        client.publish( topic, json.dumps( msg ), 2 )
+        return True
+    else:
+
+        print( "The following message couldn't be sent: ", msg )
+        return False
+
 @click.group()
 def cli():
     pass
@@ -109,12 +138,20 @@ def connect( server, port, user, password ):
     client.username_pw_set( user, password )
     client.connect( server, port, 60 )
     client.loop_start()
+
     while True:    
         # TODO: Reset keys after a while for each device
         for device, topic in topicsPublishNewKeys.items(): 
             # TODO: For each device, change its key depending on the algorithm requested by the device.
             print( device, '->', topic )
-            client.publish( topic, "HEY, I'M A KEY", 0 )
+            new_key = {
+                "id": CLIENT_ID,
+                "deviceID": device,
+                "topic": topic,
+                "key": "HEY, I'M A KEY",
+                "protocol": "TEST"
+            }
+            send( client, new_key )
         time.sleep( 10 )
 
 if __name__ == '__main__':

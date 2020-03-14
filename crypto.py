@@ -3,16 +3,22 @@ from cryptography.fernet import Fernet, MultiFernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
 from Crypto.Cipher import DES3, ChaCha20_Poly1305
 from Crypto.Random import get_random_bytes
 from Crypto import Random
-
-import json
-from base64 import b64encode, b64decode
-from Crypto.Random import get_random_bytes
+from tinyec import registry
+import secrets
 
 import os
 import binascii
+import json
+import hmac
+import hashlib
+
+from base64 import b64encode, b64decode
+from Crypto.Random import get_random_bytes
 
 # Fernet is a symmetric encryption method which makes sure that the
 # message encrypted cannot be manipulated/read without the key. It 
@@ -104,7 +110,6 @@ def chacha20Decrypt(cipher, encryptedMsg):
 
 # Chacha20 with Poly1305 authenticator, Authenticated Encryption with Associated Data (AEAD) algorithm.
 
-
 def chacha20P1305GenKey():    
     key = get_random_bytes(32)
     return key
@@ -131,7 +136,9 @@ def chacha20P1305Decrypt(key, encData):
 
 
 # Diffie Hellman 
-def non_ephemeral_DH():
+
+# HMAC is a message authentication code (MAC).
+def dhParameters():
     # Generate parameters g and p
     parameters = dh.generate_parameters(generator=5, 
                                     key_size=1024,
@@ -139,24 +146,97 @@ def non_ephemeral_DH():
 
     print("g = %d"%parameters.parameter_numbers().g)
     print("p = %d\n"%parameters.parameter_numbers().p)
+    return parameters
 
-    # Generate a device private key for use in the exchange.
-    device_private_key = parameters.generate_private_key()
-    # Generate a device public key for send it to server.
-    device_public_key = device_private_key.public_key()
+def dhGenKeys(parameters):
+    private_key = parameters.generate_private_key()
+    public_key = private_key.public_key()
 
-    # Generate a server private key for use in the exchange.
-    server_private_key = parameters.generate_private_key()
-    # Generate a server public key for use in the exchange.
-    server_public_key = server_private_key.public_key()
+    return private_key, public_key
+
+def dhGenSharedKey(private_key, remote_public_key):
+    shared_key = private_key.exchange(remote_public_key)
     
-    # here we need to recive server public_key
-    device_shared_key = device_private_key.exchange(server_private_key.public_key())
-    print("device_shared_key", binascii.hexlify(bytearray(device_shared_key)).decode("utf-8"),"\n")
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b'handshake data',
+        backend=default_backend()
+    ).derive(shared_key)
+
+    print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
+    return derived_key
+
+
+# Elliptic Curve Diffie–Hellman 
+# The elliptic curve used for the ECDH calculations is 256-bit named curve brainpoolP256r1. The 
+# private keys are 256-bit (64 hex digits) and are generated randomly. The public keys will be 
+# 257 bits (65 hex digits), due to key compression.
+def compress(pubKey):
+    return hex(pubKey.x) + hex(pubKey.y % 2)[2:]
+
+curve = registry.get_curve('brainpoolP256r1')
+
+def ecdhGenKeys(curve):
+    private_key = secrets.randbelow(curve.field.n)
+    public_key = private_key * curve.g
+    print("public key:", public_key)
+    return private_key, public_key
+
+def ecdhGenSharedKey(private_key, remote_public_key):
+    shared_key = private_key * remote_public_key
+    shared_key = str.encode(compress(shared_key))
+
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b'handshake data',
+        backend=default_backend()
+    ).derive(shared_key) 
     
-    # here we need to recive device public_key
-    server_shared_key = server_private_key.exchange(device_private_key.public_key())
-    print("server_shared_key",binascii.hexlify(bytearray(server_shared_key)).decode("utf-8"))
+    print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
+    return derived_key
+
+
+# Elliptic Curve Diffie Hellman test
+# Generate a device private and public keys for use in the exchange.
+device_private_key, device_public_key = ecdhGenKeys(curve)
+# Generate a device private and public keys for use in the exchange.
+server_private_key, server_public_key = ecdhGenKeys(curve)
+# Generate a device shared key 
+device_shared_key = ecdhGenSharedKey(device_private_key, server_public_key)
+# Generate a server shared key
+server_shared_key = ecdhGenSharedKey(server_private_key, device_public_key)
+
+
+""" #Diffie Hellman test
+# Generate parameters g and p
+parameters = dhParameters()
+# Generate a device private and public keys for use in the exchange.
+device_private_key, device_public_key = dhGenKeys(parameters)
+# Generate a device private and public keys for use in the exchange.
+server_private_key, server_public_key = dhGenKeys(parameters)
+# Generate a device shared key 
+device_shared_key = dhGenSharedKey(device_private_key, server_public_key)
+# Generate a server shared key
+server_shared_key = dhGenSharedKey(server_private_key, device_public_key)
+
+header = b"header"
+msg = b'Test chacha20Polly1305'
+encData = chacha20P1305Encrypt(device_shared_key, msg, header)
+chacha20P1305Decrypt(device_shared_key, encData) """
+
+
+string = b"password"
+key=b"bill"    
+print ("HMAC (MD5):", hmac.new(key, string,hashlib.md5).hexdigest())
+print ("HMAC (SHA1):", hmac.new(key, string, hashlib.sha1).hexdigest())
+print ("HMAC (SHA224):", hmac.new(key, string, hashlib.sha224).hexdigest())
+print ("HMAC (SHA256):", hmac.new(key, string, hashlib.sha256).hexdigest())
+print ("HMAC (SHA384):", hmac.new(key, string, hashlib.sha384).hexdigest())
+print ("HMAC (SHA512):", hmac.new(key, string, hashlib.sha512).hexdigest())
 
 
 """  # Test chacha20Polly1305
@@ -193,5 +273,3 @@ f = simpleKeyFernetGenKey()
 t = fernetEncrypt(f, m)
 d= fernetDecrypt(f, t) """
 
-""" #Diffie Hellman test
-non_ephemeral_DH() """

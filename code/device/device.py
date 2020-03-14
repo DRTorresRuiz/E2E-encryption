@@ -1,95 +1,216 @@
-import paho.mqtt.client as mqtt
-from datetime import datetime
-from random import random # Generate random numbers 
-import click
+import asyncio
 import json
-import time
+import threading
+import time as t
+from datetime import datetime
+from random import random
 
-REGISTRATION_TOPIC     = "register"
+import click
+import paho.mqtt.client as mqtt
 
-data_topic             = ""                                                # Topic used to send data - provided by platform in tmp_registration_topic
-key_management_topic   = ""                                                # Topic used for key rotation with KMS - provided by platform in tmp_registration_topic
-connected              = False                                             # If it is connected to the platform and kms correctly.
-synchronized           = False                                             # If it has finished the process of connection
+# Topic used to connect to the platform through the MQTT Server.
+REGISTRATION_TOPIC = "register" 
 
-
-def on_message( client, userdata, msg ):
-  # Device will only accept messages received from the `key_management_topic` (Rotation Key Algorithm from KMS)
-  # and from the REGISTRATION_TOPIC as it is needed to connect it to the platform.
-  global synchronized
-  global data_topic
-  global key_management_topic
-
-  if msg.topic == key_management_topic: # Rotation Key Topic
-    # TODO: Replace symmetric key.
-    print( msg.topic + " " + str( msg.payload ) )
-  elif msg.topic == REGISTRATION_TOPIC: # Accept and Config Parameters Connection Topic
-    # TODO: Make sure the data is sent by the platform.
-    connection_config = json.loads( str( msg.payload.decode("utf-8") ) )
-    if connection_config.get( "id", userdata["id"] ) != userdata["id"]: # Not reading data that this device sent. Avoiding loops.
-      # Establish data_topic and key_management
-      data_topic = connection_config["data_topic"]
-      key_management_topic = connection_config["key_topic"]
-      # TODO: Check other params to ensure connection with platform.
-      synchronized=True
-  
-def connection_request( client, userdata ):
-  # Send information to the topic REGISTRATION_TOPIC through MQTT client, so platform
-  # may start the connection process. Userdata should contain the information required 
-  # by the platform to start a connection.
-  data_registration = {
-    # Data information to send to platform.
-    "id": userdata["id"],
-    "type": userdata["type"]
-  }
-  # Publish into REGISTRATION_TOPIC, previously defined, to start the 
-  # process of the connection with the system (platform and KMS)
-  client.publish( REGISTRATION_TOPIC, json.dumps( data_registration ) ) # Sends a JSON with data_registration
-  print( "Registration request successfully sent." )
-
-def sync_noIO( client, userdata ):
-  # Synchronization process for devices without input nor output methods.
-  global synchronized
-  global connected
-
-  connection_request( client, userdata ) # Send to request to be registered in the platform. And so, start the sync process.
-  
-  # Wait answer from the platform in the REGISTRATION TOPIC.
-  client.subscribe( REGISTRATION_TOPIC )
-  now = datetime.now()
-  difference = 0
-  while not synchronized and difference < 120:
-
-    print( "Attempting to connect..." )
-    difference = ( datetime.now() - now ).total_seconds()
-    time.sleep( 10 )
-  client.unsubscribe( REGISTRATION_TOPIC )
-  if synchronized: 
-    # If the platform has given a correct answer, the
-    # device will start to send data.
-    connected = True
-    # Subscribe to key_management_topic and send message of confirmation.
-    client.subscribe( key_management_topic ) # Start subscription to KMS
-    confimation_message = {
-      # Build message of confirmation
-      "id": userdata["id"]
-    }
-    client.publish( REGISTRATION_TOPIC, json.dumps( confimation_message ) ) # Confirmation message to the platform.
-    print( "Successfully connected." )
-
-def sync_I( client, userdata ):
-  # Synchronization process for devices with an input method.
-  print( "Hi, device I" )
-  connection_request( client, userdata ) # Send to request to be registered in the platform. And so, start the sync process.
-
-def sync_O( client, userdata ):
-  # Synchronization process for devices with an output method.
-  print( "Hi, device O" ) 
-  connection_request( client, userdata ) # Send to request to be registered in the platform. And so, start the sync process.
+data_topic         = ""                    # Topic used to send values from sensors.
+key_topic         = ""                    # Topic used to receives values from KMS.
+connected          = asyncio.Semaphore(0)  # Semaphore to control the connection with the Platform
+verificationCode   = "000000"              # Only valid for noIO Devices
+codeIntroduced     = False
+fail               = False
 
 @click.group()
 def cli():
   pass
+
+def send( client, msg ):
+    # This function sends a message to an specified topic.
+    # Returns True if message was sent correctly, otherwise False. 
+    # The `msg` need to include the `topic` parameter.
+    topic = msg.get("topic", "")
+    if topic != "":
+
+        client.publish( topic, json.dumps( msg ) )
+        return True
+    else:
+
+        print( "The following message couldn't be sent: ", msg )
+        return False
+
+def on_connect( client, userdata, flags, rc ):
+    # Once connected to the MQTT Server, this device sends 
+    # a registration request through the REGISTRATION_TOPIC.
+    # And, subscribe to this topic to start the registration process.
+    registration_request = {
+        # This message starts the registration process.
+        "id": userdata["id"],
+        "type": userdata["type"],
+        "topic": REGISTRATION_TOPIC,
+        "msg": 1 # This is the first message of the registration process.
+        # TODO: Add another information for the registration process.
+    }
+    client.subscribe( REGISTRATION_TOPIC ) 
+    send( client, registration_request ) # Send the registration request.
+    # TODO: Persistence of the connection.
+
+def introduceCode( client, userdata ):
+
+    code = input( "Enter the code provided by the platform: " )
+    key_confirmation = {
+        "id": userdata["id"],
+        "type": userdata["type"],
+        "topic": REGISTRATION_TOPIC,
+        "msg": 7, 
+        "code": code
+        # TODO: Add another information for the registration process.
+    }
+    send( client, key_confirmation ) 
+
+def on_registration( client, userdata, json_message ):
+    global connected, verificationCode, data_topic, key_topic, fail
+
+    number = int( json_message.get( "msg", 0 ) )
+    deviceType = userdata["type"]
+    if number == 2:
+        # Receive message with information to build the key.
+        # Send KEY + 30 to confirm.
+        key_confirmation = {
+            "id": userdata["id"],
+            "type": deviceType,
+            "topic": REGISTRATION_TOPIC,
+            "msg": 3,
+            "key": "Hey, I am a key" # TODO: Implement
+            # TODO: Add another information for the registration process.
+        }
+        #print( json_message )
+        send( client, key_confirmation )
+    if number == 4:
+        # Send confirmation of the key
+        key_confirmation = {
+            "id": userdata["id"],
+            "type": deviceType,
+            "topic": REGISTRATION_TOPIC,
+            "msg": 5
+            # TODO: Add another information for the registration process.
+        }
+        send( client, key_confirmation )
+        #print( json_message )
+        # Now, depending of the type of device we do...
+        if deviceType == "O":
+            # Generate an verificationCode
+            verificationCode = str( round( random() * 1000000 ) )
+            print( "Introduce this code into your device: ", str( verificationCode ) )
+        elif deviceType == "I":
+            # Introduce the code provided by the platform and send it.
+            introduceCodeThread = threading.Thread(target=introduceCode, args=[client, userdata])
+            introduceCodeThread.start()                   
+    if number == 6 and deviceType != "I":
+
+        if verificationCode == json_message.get( "code", "" ):
+            #print( json_message )    
+            # Send confirmation of the key
+            code_confirmation = {
+                "id": userdata["id"],
+                "type": userdata["type"],
+                "topic": REGISTRATION_TOPIC,
+                "msg": 7,
+                "status": "OK"
+                # TODO: Add another information for the registration process.
+            }
+            send( client, code_confirmation )    
+        else:
+            
+            error = {
+                "id": userdata["id"],
+                "type": userdata["type"],
+                "topic": REGISTRATION_TOPIC,
+                "msg": 7,
+                "status": "ERROR"
+                # TODO: Add another information for the registration process.
+            }
+            send( client, error )
+            print( "Verification code does not match." )
+            fail = True
+
+        #print( json_message )
+    if number == 8:
+
+        data_topic = json_message.get( "data_topic", "" )
+        key_topic = json_message.get( "key_topic", "" )
+        if data_topic != "" and key_topic != "":
+            # Send confirmation of the key
+            code_confirmation = {
+                "id": userdata["id"],
+                "type": userdata["type"],
+                "topic": REGISTRATION_TOPIC,
+                "msg": 9
+                # TODO: Add another information for the registration process.
+            }
+            send( client, code_confirmation )
+            client.subscribe( key_topic ) # Start subscription to KMS
+        else:
+            print( "Connection failed." )
+            fail = True
+
+        #print( json_message )
+
+        client.unsubscribe( REGISTRATION_TOPIC )
+        connected.release()
+
+def on_secure( client, userdata, json_message ):
+    # TODO: Manage new keys.
+    print( "Managing new keys received, ", json_message )
+
+def on_message( client, userdata, msg ):
+    # This function receives different messages from topics to which this device
+    # is subscribed. 
+    global data_topic, key_topic
+
+    # The message received is loaded as a dictionary by using json library.
+    message = json.loads( str( msg.payload.decode( "utf-8" ) ) )
+    deviceID = message.get( "id", userdata["id"] ) # Get the id of the device that sent a message.
+    if deviceID != userdata["id"]: # If it is different of the id of this device, we treat it.
+        
+        topic = message.get( "topic", "" )
+        if topic == REGISTRATION_TOPIC:
+
+            on_registration( client, userdata, message )
+        elif key_topic != "" and topic == key_topic:
+
+            on_secure( client, userdata, message ) 
+
+def connect_MQTT( userdata, serverinfo ):
+    # Connection to MQTT Server.
+    client = mqtt.Client( client_id=userdata["id"], userdata=userdata )  
+    client.on_message = on_message
+    client.on_connect = on_connect
+    client.username_pw_set( serverinfo["username"], serverinfo["password"] )
+    client.connect( serverinfo["server"], serverinfo["port"], 60 )
+    client.loop_start()
+    return client
+
+def wait_til( flag, time ):
+    
+    now = datetime.now()
+    difference = 0
+    print( "Waiting for connecting..." )
+    while flag.locked() and not fail and difference < time:
+        
+        difference = ( datetime.now() - now ).total_seconds()
+
+def send_data( client, userdata ):
+
+    new_message = {
+        "id": userdata["id"],
+        "type": userdata["type"],
+        "topic": data_topic,
+        "values": {
+            "sensor1": random(),
+            "sensor2": random()
+        }
+        # TODO: Add another information for the registration process.
+    }
+    print( "[", datetime.now() ,"] Value sent: ", new_message )
+    send( client, new_message )
 
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send data." )
@@ -97,53 +218,44 @@ def cli():
 @click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Serve." )
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
 @click.option( '-t', '--device-type', 'typeDevice', type=click.Choice(['noIO','I','O']), default="noIO", help="The type of the device. Your choice will affect the way your device connects to the platform. noIO - without any entrance nor output; I - with one keyboard input available; O - the O letter indicates a device with one display." )
-def connect( server, port, user, password, typeDevice ):
-  """
-    Start an IoT device and connect it to the platform.
-  """
-  global connected
-  userdata = {
-    # Data information about the device.
-    "id": "device-" + str( round( random() * 1000000 ) ),
-    "type": typeDevice
-  }
-  
-  # Connection to MQTT Server.
-  client = mqtt.Client( client_id=userdata["id"], userdata=userdata )  
-  client.on_message = on_message
-  client.username_pw_set( user, password )
-  client.connect( server, port, 60 )
-  client.loop_start()
+@click.option( '-i', '--identification', 'idDevice', type=str, default="", help="The Device ID you want to use. If not specified, it will be generated randomly." )
+@click.option( '-T', '--time', 'time', type=int, default=10, show_default=True, help="Time passed to send new data from device to platform." )
+def start( server, port, user, password, typeDevice, idDevice, time ):
+    """
+        Start an IoT device and connect it to the platform.
+    """
+    global connected
 
-  # Sync process. It depends on the type of the device.
-  if typeDevice == "noIO":
-    # Start sync process for devices without input nor output methods.
-    sync_noIO( client, userdata )
-  elif typeDevice == "I":
-    # Start sync process for devices with an input method.
-    sync_I( client, userdata )
-  else: # typeDevice == O
-    # Start sync process for devices with an output method.
-    sync_O( client, userdata )
-  
-  # After a successful connection, the device will publish into the topic specified by the platform.
-  while connected:
-
-    if data_topic != "" : 
-      # TODO: Obtain Key to cypher.
-      # TODO: cypher according the algorithm negotiated with the platform.
-      new_value = random()
-      client.publish( data_topic, new_value )
-      print( "[", datetime.now() ,"] Send value: ", new_value )
-      
-      time.sleep( 20 )
-    else: connected=False
-  
-  # Connection Error. End of the process.
-  print( "Something was wrong during the connection process. Please attempt to connect to the platform again." )
+    # Group data received    
+    userdata = {
+        # Data information about the Device
+        "id": idDevice if idDevice != "" else "device-" + str( round( random() * 1000000 ) ),
+        "type": typeDevice
+    }
+    serverinfo = {
+        # Information to connect to the MQTT Server
+        "username": user,
+        "password": password,
+        "server": server,
+        "port": port
+    }
+    client = connect_MQTT( userdata, serverinfo )
+    # Wait until connection established with the platform
+    # TODO: Device Persistence
+    wait_til( connected, 120 ) # Wait 2 minutes for connecting...
     
+    while not connected.locked():
+        # If connected, send new data.
+        if data_topic != "":
+
+            send_data( client, userdata )
+        t.sleep(time)
+    # If not connected, close the process.
+    print( "This device is not connected. Ending process." )
+
 if __name__ == '__main__':
-  # This main process only include the `connect` command.
-  # If you need help to run this command, check: `python device.py connect --help`
-  cli.add_command( connect )
-  cli()
+    # This main process only include the `connect` command.
+    # If you need help to run this command, check: `python device.py connect --help`
+    cli.add_command( start )
+    # Add here a new command for devices.
+    cli()

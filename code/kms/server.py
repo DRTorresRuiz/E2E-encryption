@@ -5,8 +5,11 @@ import paho.mqtt.client as mqtt
 import threading
 import click
 import time
+import json
+import os
 
 CLIENT_ID               = "kms-muii"
+TOPIC_FILE = 'registeredDeviceTopics.json'
 
 topicsPublishNewKeys    = {}
 secretRegisteredDevices = {}
@@ -28,10 +31,29 @@ class FlaskThread( threading.Thread ):
     @app.route( '/register-device', methods=['POST'] )
     @auth.login_required
     def register( ):
-        # TODO: Create a file to include registeredDevices
-        if not request.json or not 'id' in request.json: abort( 400 )
+        global topicsPublishNewKeys
 
+        if not request.json or not 'id' in request.json: abort( 400 )
+        
         topicsPublishNewKeys[request.json["id"]] = request.json['key_topic']
+        # Save into `registeredDeviceTopics.json` file
+        with open( TOPIC_FILE, 'w' ) as file:
+            json.dump( topicsPublishNewKeys, file, indent=4 )
+        return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
+        
+    @app.route( '/remove-device', methods=['POST'] )
+    @auth.login_required
+    def remove( ):
+        global topicsPublishNewKeys
+
+        if not request.json or not 'id' in request.json: abort( 400 )
+        
+        # TODO: Contorl that the id exists.
+        del topicsPublishNewKeys[request.json["id"]]
+        del secretRegisteredDevices[request.json["id"]]
+        # Save into `registeredDeviceTopics.json` file
+        with open( TOPIC_FILE, 'w' ) as file:
+            json.dump( topicsPublishNewKeys, file, indent=4 )
         return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
         
     @auth.error_handler
@@ -42,6 +64,13 @@ class FlaskThread( threading.Thread ):
     def not_found( error ):
         return make_response( jsonify( {'error': 'Not found'} ), 404 )
      
+    # TODO: SEPARATE TASKS in routes
+    # - [x] Register new device.
+    # - [ ] TODO: Send keys to all topics.
+    # - [x] Remove devices.
+    # - [ ] TODO: Send a specific key to the platform.
+    # - [ ] TODO: Send all keys to the platform.
+    
     def run( self ):
         app.run()
 
@@ -57,6 +86,32 @@ def start_flask():
     flaskThread.daemon = True # Need to be a daemon to close it with Ctrl+C
     flaskThread.start()
 
+def load_registered_device_topics():
+    # Load from the `registerDeviceTopics.json` file to get the topics
+    # where to publish the keys for a device. If the file does not exit, 
+    # it will be created.
+    if not os.path.exists( TOPIC_FILE ):
+        # If file does not exit, it will be created.
+        with open( TOPIC_FILE, 'w') as file: file.write("{}") 
+    with open( TOPIC_FILE ) as file:
+        # Group previous devices registered
+        data = json.load( file )
+    return data 
+
+def send( client, msg ):
+    # This function sends a message to an specified topic.
+    # Returns True if message was sent correctly, otherwise False. 
+    # The `msg` need to include the `topic` parameter.
+    topic = msg.get( "topic", "" )
+    if topic != "":
+
+        client.publish( topic, json.dumps( msg ), 2 )
+        return True
+    else:
+
+        print( "The following message couldn't be sent: ", msg )
+        return False
+
 @click.group()
 def cli():
     pass
@@ -70,19 +125,33 @@ def connect( server, port, user, password ):
     """
         Start KMS. It will start the RESTful at port 5000 and start the Key Rotation process.
     """
-    start_flask() 
+    global topicsPublishNewKeys
+    global secretRegisteredDevices
+
+    start_flask()  
+    # Load the information saved of the registered devices.
+    topicsPublishNewKeys = load_registered_device_topics()
+    #secretRegisteredDevices = load_registered_device_secrets()
     # Connect to MQTT Server.    
     client = mqtt.Client( client_id=CLIENT_ID )
     client.on_connect = on_connect
     client.username_pw_set( user, password )
     client.connect( server, port, 60 )
     client.loop_start()
+
     while True:    
         # TODO: Reset keys after a while for each device
         for device, topic in topicsPublishNewKeys.items(): 
             # TODO: For each device, change its key depending on the algorithm requested by the device.
             print( device, '->', topic )
-            client.publish( topic, "HEY, I'M A KEY", 0 )
+            new_key = {
+                "id": CLIENT_ID,
+                "deviceID": device,
+                "topic": topic,
+                "key": "HEY, I'M A KEY",
+                "protocol": "TEST"
+            }
+            send( client, new_key )
         time.sleep( 10 )
 
 if __name__ == '__main__':

@@ -45,10 +45,10 @@ These are the task we are going into during this project:
 - [ ] **Platform**:
   - [ ] *CLI*:
     - [x] Register new device.
-    - [ ] List devices / Topics.
-    - [ ] Remove devices.
+    - [x] List devices / Topics.
+    - [x] Remove devices.
     - [ ] Subscribe and read from an specific topic:
-      - [ ] Subscribe to an specific topic.
+      - [x] Subscribe to an specific topic.
       - [ ] Read data from this selected topic:
         - [ ] Simple key.
         - [ ] Multi-keys.
@@ -101,7 +101,7 @@ pip install -r requirements.txt
 ### Devices
 
 ```bash
-python code/device/device.py connect -u <DEVICE_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <DEVICE_PASSWORD>`
+python code/device/device.py start -u <DEVICE_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <DEVICE_PASSWORD>`
 ```
 
 ### KMS
@@ -124,6 +124,18 @@ This command will listen all topics included in the `registeredDevices.json` fil
 
 ```bash
 python code/platform/cli/e2e.py connect -u <PLATFORM_ID> # A prompt will appear to introduce the password
+```
+
+```bash
+python code/platform/cli/e2e.py remove-device -u <PLATFORM_ID> -i <ID_DEVICE> # A prompt will appear to introduce the password
+```
+
+```bash
+python code/platform/cli/e2e.py listen-topic -u <PLATFORM_ID> -t <TOPIC> # A prompt will appear to introduce the password
+```
+
+```bash
+python code/platform/cli/e2e.py list-devices
 ```
 
 #### Web Service

@@ -12,51 +12,53 @@ The `code` folder contains the code for the platform ( CLI and Web Platform ), t
 
 These are the task we are going into during this project:
 
-- [ ] **CLI for Devices**:
+- [x] **CLI for Devices**:
   - [x] *Authentication and Registration algorithms* used to connect to the platform via MQTT:
     - [x] Algorithm to connect an IoT Device without Input nor Output - only the Internet connection as output, and sensor values as inputs.
     - [x] Algorithm to connect an IoT Device with Input - such as a keyboard.
     - [x] Algorithm to connect an IoT Device with Output - a kind of display.
-  - [ ] *Supported Crypto Algorithms*:
-    - [ ] *Symmetric*. To send data to the platform via public MQTT topics:
-      - [ ] Fernet Simple Keys
-      - [ ] Chacha20 with Poly1305 authenticator
-    - [ ] *Asymmetric*. To cypher the keys in the Key Exchange Algorithms:
+  - [x] *Supported Crypto Algorithms*:
+    - [x] *Symmetric*. To send data to the platform via public MQTT topics:
+      - [x] Fernet Simple Keys
+      - [x] Chacha20 with Poly1305 authenticator
+    - [x] *Asymmetric*. To cypher the keys in the Key Exchange Algorithms:
       - [x] DH.
-      - [ ] HMAC DH.
-      - [ ] ECDH.
-      - [ ] Ephemeral Keys.
-- [ ] **KMS**:
+      - [x] HMAC DH.
+      - [x] ECDH.
+      - [x] Ephemeral Keys.
+- [x] **KMS**:
   - [x] *Register a device into KMS*.
-  - [ ] *Key Rotation*. Send keys to device according to the specified symmetric algorithm:
-    - [ ] Simple key algorithms
-  - [ ] Provide the current key for a device.
-  - [ ] Provide the current key for all devices.
-- [ ] **Platform**:
-  - [ ] *CLI*:
+  - [x] *Key Rotation*. Send keys to device according to the specified symmetric algorithm:
+    - [x] Simple key algorithms:
+      - [x] Fernet Simple Keys
+      - [x] Chacha20 with Poly1305 authenticator
+  - [x] Provide the current key for a device.
+  - [x] Provide the current key for all devices.
+- [x] **Platform**:
+  - [x] *CLI*:
     - [x] Register new device:
       - [x] DH.
-      - [ ] HMAC DH.
-      - [ ] ECDH.
-      - [ ] Ephemeral Keys.
+      - [x] HMAC DH.
+      - [x] ECDH.
+      - [x] Ephemeral Keys.
     - [x] List devices / Topics.
     - [x] Remove devices.
-    - [ ] Subscribe and read from an specific topic:
+    - [x] Subscribe and read from an specific topic:
       - [x] Subscribe to an specific topic.
-      - [ ] Read data from this selected topic. Support symmetric algorithms of encryption:
-        - [ ] Fernet Simple Keys
-        - [ ] Chacha20 with Poly1305 authenticator
-    - [ ] Subscribe and read from all topics at the same time:
+      - [x] Read data from this selected topic. Support symmetric algorithms of encryption:
+        - [x] Fernet Simple Keys
+        - [x] Chacha20 with Poly1305 authenticator
+    - [x] Subscribe and read from all topics at the same time:
       - [x] Subscribe to all topics listed.
-      - [ ] Read data from all topics. Support symmetric algorithms of encryption:
-        - [ ] Fernet Simple Keys
-        - [ ] Chacha20 with Poly1305 authenticator
+      - [x] Read data from all topics. Support symmetric algorithms of encryption:
+        - [x] Fernet Simple Keys
+        - [x] Chacha20 with Poly1305 authenticator
   - [ ] *Web service*:
     - [ ] Register new device.
-    - [ ] List devices / topics.
+    - [x] List devices / topics.
     - [ ] Remove devices.
-    - [ ] Subscribe and read from an specific topic.
-    - [ ] Subscribe and read from all topics at the same time.
+    - [x] Subscribe and read from an specific topic.
+    - [x] Subscribe and read from all topics at the same time.
 
 ## Running our code
 

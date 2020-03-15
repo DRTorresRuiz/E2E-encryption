@@ -1,168 +1,343 @@
+from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
+from cryptography.hazmat.primitives.asymmetric import dh, rsa
+from cryptography.hazmat.backends import default_backend
+from chacha20poly1305 import ChaCha20Poly1305
+from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
 from datetime import datetime
 from random import random
+import tinyec.ec as ec
 import time as t
 import requests
 import asyncio
+import hashlib
+import base64
 import click
+import hmac
 import json
 import os
+import re
+
+from sys import path
+path.append("../../") # Add path to get utils.py
+import utils as utils # Include different common fucntions.
 
 PLATFORM_ID            = "platform-cli-muii"
 REGISTRATION_TOPIC     = "register"
 REGISTERED_DEVICE_FILE = 'registeredDevices.json'
-KMS_SERVER_URL = "http://127.0.0.1:5000/"
+KMS_SERVER_URL         = "http://127.0.0.1:5000/"
+HASH_KEY               = b'kkpo-kktua'
 
+#####
+### Parameters used for the listening process
+#####
+topics_subscribed      = []
+
+#####
+### Parameters used for the registration process
+#####
 connected              = asyncio.Semaphore(0)   # Semaphore to control the connection with the Device
 msg_1                  = False
 msg_3                  = False
 msg_5                  = False
 msg_7                  = False
 verificationCode       = ""
-fail                   = False
+connection_failed      = False
 newDevice              = {}
+public_key             = ""
+private_key            = ""
+shared_key             = ""
+symmetricAlgorithm     = ""
+asymmetricAlgorithm    = ""
+encriptor              = None
 
 @click.group()
 def cli():
   pass
 
-def send( client, msg ):
-    # This function sends a message to an specified topic.
-    # Returns True if message was sent correctly, otherwise False. 
-    # The `msg` need to include the `topic` parameter.
-    topic = msg.get( "topic", "" )
-    if topic != "":
+def add_header_message( message, userdata, topic, msg_number=0 ):
+    """
+        This functions adds information about the device
+        to send it to the platform.
+    """
+    message["id"]       = PLATFORM_ID
+    message["topic"]    = topic
+    message["timestamp"]= str( datetime.now() )
+    if msg_number != 0:
 
-        client.publish( topic, json.dumps( msg ) )
-        return True
-    else:
+        message["msg"]  = msg_number
+    
+    header = {
+        "id": PLATFORM_ID,
+        "topic": topic,
+        "timestamp": message["timestamp"]
+    }
+    message["sign"] = hmac.new(HASH_KEY, json.dumps( header ).encode(), hashlib.sha384).hexdigest()
 
-        print( "The following message couldn't be sent: ", msg )
-        return False
+    return message
+
+def modify_encriptor( key, symmetricAlgorithm ):
+    """
+
+    """
+    global encriptor
+    if symmetricAlgorithm == "fernet":
+
+        encriptor = Fernet( key.encode("utf-8") )
+    elif symmetricAlgorithm == "chacha":
+
+        encriptor = ChaCha20Poly1305( key.encode("latin-1") )
 
 def on_registration( client, userdata, msg ):
-    # Method used to registration process of a device.
-    global connected, fail, newDevice
+    """
+        Method used for the registration process of a device.
+    """
+    global connected, connection_failed, newDevice
     global verificationCode
     global msg_1, msg_3, msg_5, msg_7
-
-    # The message received is loaded as a dictionary by using json library.
-    message = json.loads( str( msg.payload.decode( "utf-8" ) ) )
-    deviceID = message.get( "id", PLATFORM_ID ) # Get the id of the device that sent a message.
-    if deviceID != PLATFORM_ID: # If it is different of the platform id, we treat it.
-
+    global public_key, private_key, shared_key
+    global symmetricAlgorithm, asymmetricAlgorithm, encriptor
+    message, trustworthy = utils.get_message( str( msg.payload.decode( "utf-8" ) ), encriptor, HASH_KEY )
+    if message != "" and trustworthy:
+        
         topic = message.get( "topic", "" )
         if topic == REGISTRATION_TOPIC:
 
-            number = int( message.get( "msg", 0 ) )
-            if number == 1:
-                # Received message 1 for the registration process
-                # Building message two.
-                answer_registration_request = {
-                    "id": PLATFORM_ID,
-                    "topic": REGISTRATION_TOPIC,
-                    "msg": 2
-                    # TODO: Add another information for the registration process.
-                }
-                #print( message )
-                send( client, answer_registration_request )
-                msg_1 = True
-            elif msg_1 and number == 3:
-                # Received a message with the KEY generated + 30, to ensure the
-                # rightful of the device to connect. Send KEY Received + 20.
-                key_confirmation = {
-                    "id": PLATFORM_ID,
-                    "topic": REGISTRATION_TOPIC,
-                    "msg": 4,
-                    "key": "Hey, I am a key" # TODO: Implement
-                    # TODO: Add another information for the registration process.
-                }
-                send( client, key_confirmation )
-                #print( message )
-                msg_3 = True
-            elif msg_3 and number == 5:
-                # If receive confirmation, introduce code and send to device.
-                # TODO: Check for valid confirmation.
-                #print( message )
-                deviceType = message.get( "type", "" )
-                if deviceType != "" and deviceType == "I":
-                    
-                    verificationCode = str( round( random() * 1000000 ) )
-                    print( "Introduce this code into your device: ", str( verificationCode ) )
-                else:
-
-                    code = input( "Enter the code provided by the device: " )
-                    key_confirmation = {
-                        "id": PLATFORM_ID,
-                        "topic": REGISTRATION_TOPIC,
-                        "msg": 6,
-                        "code": code
-                        # TODO: Add another information for the registration process.
-                    }
-                    send( client, key_confirmation )
-                msg_5 = True
-            elif msg_5 and number == 7:
-                # If Device has input, we will receive a code so we compare it
-                # with the verificationCode obtained before. If it has not input,
-                # we will receive a confimation, and if everything is ok,
-                # we will send the data_topic and key_topic.
-                validDevice = False
-                deviceType = message.get( "type", "" )
-                if deviceType != "" and deviceType == "I":
-                    
-                    if verificationCode == message.get( "code", "" ):
-
-                        validDevice = True
-                else:
-                    
-                    if message.get( "status", "ERROR" ) == "OK":
-
-                        validDevice = True
+            error = message.get( "error", "" )
+            if error != "":
+                # We have received an error message from a device during registration
+                print( "ERROR: ", error )
+                connection_failed = True
+            # Get the id of the device that sent a message.
+            deviceID = message.get( "id", PLATFORM_ID )
+            if not connection_failed and deviceID != PLATFORM_ID:
+                # If it is different of the platform id, we treat it.
+                # We do not want to read our own messages.
+                number = int( message.get( "msg", 0 ) )
+                if number == 1:
+                    # Received message 1 for the registration process       
+                    auth = message.get( "auth", "" )
+                    if auth != "":
                         
-                if validDevice:
+                        asymmetricAlgorithm = auth.get( "asymmetric", "" ) 
+                        if asymmetricAlgorithm == "dh":
 
-                    topic_message = {
-                        "id": PLATFORM_ID,
-                        "topic": REGISTRATION_TOPIC,
-                        "msg": 8,
-                        "data_topic": "data-" + deviceID + "-" + str( round( random() * 1000000 ) ),
-                        "key_topic": "key-" + deviceID + "-" + str( round( random() * 1000000 ) )
-                        # TODO: Add another information for the registration process.
-                    }
-                    newDevice = {
-                        "id": deviceID,
-                        "type": deviceType,
-                        "data_topic": topic_message["data_topic"],
-                        "key_topic": topic_message["key_topic"],
-                    }
-                    send( client, topic_message )
-                    msg_7 = True
-                else:
-                    fail = True
-                    print( "Connection failed." )
-                #print( message )
-            elif msg_7 and number == 9:
-                # We received a confirmation of the topics reception.
-                # print( message )
-                connected.release()
+                            g = auth.get( "g", "" )
+                            p = auth.get( "p", "" )
+                            device_pub_key = auth.get( "public_key", "" )
+                            if g == "" and p == "" and device_pub_key == "":
+                                # Cannot be empty.
+                                connection_failed = True 
+                            # Generate private key and public key for platform in the registration process
+                            pn = dh.DHParameterNumbers( p, g )
+                            parameters = pn.parameters(default_backend())
+                            private_key, public_key = utils.dhGenKeys(parameters)
+                            # Generate shared key
+                            device_pub_key = utils.load_key( device_pub_key )
+                            shared_key = utils.dhGenSharedKey( private_key, device_pub_key )
+
+                            # Building message two.
+                            answer_registration_request = {
+                                "auth": {
+                                    "public_key": public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode( "utf-8" )
+                                }                        
+                            }
+                        elif asymmetricAlgorithm == "ecdh":
+                            
+                            x = auth.get( "x", "" )
+                            y = auth.get( "y", "" )
+                            if x == "" and y == "":
+                                # Cannot be empty.
+                                connection_failed = True 
+                            private_key, public_key = utils.ecdhGenKeys(utils.curve)
+                            device_pub_key = ec.Point( utils.curve, x, y )
+                            shared_key = utils.ecdhGenSharedKey( private_key, device_pub_key )
+                            
+                            # Building message two.
+                            answer_registration_request = {
+                                "auth": {
+                                    "x": public_key.x,
+                                    "y": public_key.y
+                                }                        
+                            }
+
+                        if shared_key == "":
+
+                            connection_failed = True
+                        symmetricAlgorithm = auth.get( "symmetric", "" )
+                        if symmetricAlgorithm == "fernet":
+
+                            encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
+                        elif symmetricAlgorithm == "chacha":
+                            
+                            encriptor = ChaCha20Poly1305( shared_key )
+                        
+                        message = add_header_message( answer_registration_request, userdata, REGISTRATION_TOPIC, 2 )
+                        utils.send( client, None, message )
+                        msg_1 = True
+                    if not msg_1:
+
+                        print( "ERROR: Registration request incomplete." )
+                        connection_failed = True
+                elif msg_1 and number == 3:
+                    # Received a message with the KEY generated + 30, to ensure the
+                    # rightful of the device to connect. Send KEY Received + 20.
+                    if encriptor != None:
+
+                        new_key = message.get( "new_key", "" )
+                        if new_key != "":
+
+                            modify_encriptor( new_key, symmetricAlgorithm )
+
+                        keyPlusThirty = shared_key+"30".encode()
+                        keyReceived = message.get( "payload", "" )
+                        if str( keyPlusThirty ) == keyReceived:
+
+                            key = shared_key+"20".encode()
+                            key_confirmation = { "payload": str( key ) }
+                            if symmetricAlgorithm == "fernet":
+                    
+                                new_key = utils.simpleFernetGenKey().decode("utf-8")
+                            elif symmetricAlgorithm == "chacha":
+
+                                new_key = os.urandom(32).decode("latin-1")
+                            key_confirmation["new_key"] = new_key
+                            message = add_header_message( key_confirmation, userdata, REGISTRATION_TOPIC, 4 )
+                            utils.send( client, encriptor, message )
+                            # Ephemeral key implementation:
+                            modify_encriptor( new_key, symmetricAlgorithm )
+                            msg_3 = True
+                    if not msg_3:
+                        
+                        print( "ERROR: Keys does not match." )
+                        connection_failed = True
+                elif msg_3 and number == 5:
+                    # If receive confirmation, introduce code and send to device.
+                    if encriptor != None:
+
+                        if message.get( "status", "ERROR" ) == "OK":
+                            new_key = message.get( "new_key", "" )
+                            if new_key != "":
+
+                                modify_encriptor( new_key, symmetricAlgorithm )
+
+                            deviceType = message.get( "type", "" )
+                            if deviceType != "" and deviceType == "I":
+                                
+                                verificationCode = str( round( random() * 1000000 ) )
+                                print( "Introduce this code into your device: ", str( verificationCode ) )
+                            else:
+
+                                code = input( "Enter the code provided by the device: " )
+                                code_confirmation = { "code": code }
+                                if symmetricAlgorithm == "fernet":
+                    
+                                    new_key = utils.simpleFernetGenKey().decode("utf-8")
+                                elif symmetricAlgorithm == "chacha":
+
+                                    new_key = os.urandom(32).decode("latin-1")
+                                code_confirmation["new_key"] = new_key
+                                message = add_header_message( code_confirmation, userdata, REGISTRATION_TOPIC, 6 )
+                                utils.send( client, encriptor, message )
+                                # Ephemeral key implementation:
+                                modify_encriptor( new_key, symmetricAlgorithm ) 
+                            msg_5 = True
+                    if not msg_5:
+                        
+                        print( "ERROR: Code does not match." )
+                        connection_failed=True
+                elif msg_5 and number == 7:
+                    # If Device has input, we will receive a code so we compare it
+                    # with the verificationCode obtained before. If it has not input,
+                    # we will receive a confimation, and if everything is ok,
+                    # we will send the data_topic and key_topic.
+                    if encriptor != None:
+
+                        validDevice = False
+                        deviceType = message.get( "type", "" )
+                        if deviceType != "" and deviceType == "I":
+
+                            if verificationCode == message.get( "code", "" ):
+
+                                validDevice = True
+                        else:
+
+                            if message.get( "status", "ERROR" ) == "OK":
+
+                                validDevice = True   
+                        if validDevice:
+                            new_key = message.get( "new_key", "" )
+                            if new_key != "":
+
+                                modify_encriptor( new_key, symmetricAlgorithm )
+
+                            data_topic = "data-" + deviceID + "-" + str( round( random() * 1000000 ) )
+                            key_topic = "key-" + deviceID + "-" + str( round( random() * 1000000 ) )
+                            topic_message = { 
+                                "data_topic": data_topic,
+                                "key_topic": key_topic
+                            }
+                            if symmetricAlgorithm == "fernet":
+                    
+                                new_key = utils.simpleFernetGenKey().decode("utf-8")
+                            elif symmetricAlgorithm == "chacha":
+
+                                new_key = os.urandom(32).decode("latin-1")
+                            topic_message["new_key"] = new_key
+                            message = add_header_message( topic_message, userdata, REGISTRATION_TOPIC, 8 )
+                            utils.send( client, encriptor, message )
+                            # Ephemeral key implementation:
+                            modify_encriptor( new_key, symmetricAlgorithm ) 
+                            newDevice = {
+                                "id": deviceID,
+                                "type": deviceType,
+                                "data_topic": data_topic,
+                                "key_topic": key_topic,
+                                "symmetric": symmetricAlgorithm
+                            }
+                            if symmetricAlgorithm == "fernet":
+
+                                newDevice["shared_key"] = str( base64.urlsafe_b64encode( shared_key ).decode("utf-8") )
+                            elif symmetricAlgorithm == "chacha":
+                                
+                                newDevice["shared_key"] = shared_key.decode("latin-1")
+                            msg_7 = True
+                    if not msg_7:
+
+                        print( "ERROR: Connection failed." )
+                        connection_failed = True
+                elif msg_7 and number == 9:
+                    # We received a confirmation of the topics reception from the device.
+                    connected.release()
+    if not trustworthy:
+
+        print( "Corrupt message received. Closing process.")
+        connection_failed = True
 
 def connect_MQTT( server, port, user, password, message_handler ):
-    # Make the connection to the MQTT Server.
-    client = mqtt.Client( client_id=PLATFORM_ID )
+    """ Connection to MQTT Server."""
+    userdata ={
+        "user": user,
+        "password": password
+    }
+    client = mqtt.Client( client_id=PLATFORM_ID, userdata=userdata)
     client.on_message = message_handler
     client.username_pw_set( user, password )
     client.connect( server, port, 60 )
     client.loop_start()
     return client
 
-def wait_til( flag, time ):
-    global fail
-
+def wait_til( flag, time, message ):
+    """
+        This functions stay awaiting till 
+        one of the conditions happen.
+    """
+    global connection_failed 
     now = datetime.now()
     difference = 0
-    print( "Waiting for connecting..." )
-    while flag.locked() and not fail and difference < time:
-
+    print( message )
+    while flag.locked() and not connection_failed and difference < time:
+        
         difference = ( datetime.now() - now ).total_seconds()
 
 def getRegisteredDevices():
@@ -186,11 +361,10 @@ def register( server, port, user, password ):
         Allow a new device to connect to your platform.
     """
     global connected, newDevice
-
     client = connect_MQTT( server, port, user, password, on_registration )
     client.subscribe( REGISTRATION_TOPIC ) 
     
-    wait_til( connected, 120 )
+    wait_til( connected, 120, "Waiting for connecting..." )
     
     client.unsubscribe( REGISTRATION_TOPIC )
     if not connected.locked():
@@ -200,17 +374,18 @@ def register( server, port, user, password ):
         with open( REGISTERED_DEVICE_FILE, 'w' ) as file:
       
             devices[newDevice["id"]] = {
-                "data_topic": newDevice["data_topic"] 
-                # TODO: Include more information
+                "data_topic": newDevice["data_topic"],
+                "type": newDevice["type"],
+                "symmetric": newDevice["symmetric"]
             }
             json.dump( devices, file, indent=4 )
-
         # Registered Devices into KMS
         post_message = {
             # Data information to sent to KMS
             "id": newDevice["id"],
-            "key_topic": newDevice["key_topic"]
-            # TODO: Include information about algorithms
+            "key_topic": newDevice["key_topic"],
+            "symmetric": newDevice["symmetric"],
+            "shared_key": newDevice["shared_key"]
         }
         message = requests.post( KMS_SERVER_URL+"register-device", json = post_message, auth=( user, password ) )
         print( "Device successfully added to KMS: ", message.json() )
@@ -224,18 +399,73 @@ def list_devices():
     """
 
     """
-    filename = 'registeredDevices.json'
-    if os.path.exists( filename ):
-        with open( filename ) as file:
+    devices = getRegisteredDevices()
+    if devices == {}:
+        
+        print ( "No devices registered." )
+    else:
+        
+        print( json.dumps( devices, indent=4, sort_keys=True ) )
 
-            data = json.load( file )
-            for key, value in data.items():
-                print( "Device: ", key, " -> {\n\tData topic: ", value["data_topic"], "\n}" )
+def get_data_message( payload, secrets, symmetricAlgorithm ):
+    """
+
+    """
+    message = "" 
+    if secrets != None and symmetricAlgorithm != None:
+
+        key = secrets.get( "1", "" )
+        encriptor = None
+        if key != "":
+            
+            if symmetricAlgorithm == "fernet":
+                
+                encriptor = Fernet( key.encode() )
+            elif symmetricAlgorithm == "chacha":
+
+                encriptor = ChaCha20Poly1305( key.encode("latin-1") )
+
+            message, trustworthy = utils.get_message( payload, encriptor, HASH_KEY )
+            if message == "":
+                key = secrets.get( "0", "" )
+                encriptor = None
+                if key != "":
+                    
+                    if symmetricAlgorithm == "fernet":
+                        
+                        encriptor = Fernet( key.encode() )
+                    elif symmetricAlgorithm == "chacha":
+
+                        encriptor = ChaCha20Poly1305( key.encode("latin-1") )
+
+                    message, trustworthy = utils.get_message( payload, encriptor, HASH_KEY )
+    
+    if not trustworthy:
+        
+        message = ""          
+    return message 
 
 def on_message( client, userdata, msg ):
-    # Receiving from all topics subscribed.
-    # TODO: Ask KMS for Keys.
-    print( msg.topic + " " + str( msg.payload ) )
+    """
+        Receiving from all topics subscribed.
+    """
+    global topics_subscribed
+    if msg.topic in topics_subscribed:
+        
+        pattern = r'(device\-\d+)'
+        match = re.search( pattern, msg.topic )
+        if match:
+
+            device_id = match.group()
+            # Registered Devices into KMS
+            secret_request = {
+                # Data information to sent to KMS
+                "id": device_id
+            }
+            secrets = requests.post( KMS_SERVER_URL+"get-key", json = secret_request, auth=( userdata["user"], userdata["password"] ) ).json()
+            message = get_data_message( str( msg.payload.decode( "utf-8" ) ), secrets.get( "secrets", None), secrets.get( "symmetric", None ) )
+            if message != "":
+                print( message )
 
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send keys." )
@@ -243,9 +473,11 @@ def on_message( client, userdata, msg ):
 @click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Serve." )
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
 def connect( server, port, user, password ):
+    """
 
+    """
+    global topics_subscribed
     client = connect_MQTT( server, port, user, password, on_message )
-    
     # Subscribe to all topics included in registeredDevices.json file.
     # TODO: Check if KMS is alive.
     # TODO: If KMS is alive, check if there is any non-registered device in KMS that should be registered and register it in KMS.
@@ -255,12 +487,12 @@ def connect( server, port, user, password ):
 
             data = json.load( file )
             for key, value in data.items():
-                client.subscribe( value["data_topic"] )
 
+                topics_subscribed.append( value["data_topic"] )
+                client.subscribe( value["data_topic"] )
     while True:      # Keep Platform listening.
         pass
 
-# - [x] Select and Read from an specific topic / device.
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send keys." )
 @click.option( '-P', '--port', 'port', required=True, type=int, show_default=True, default=1883, help="Port of theMQTT Server to send keys." )
@@ -268,32 +500,44 @@ def connect( server, port, user, password ):
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
 @click.option( '-t', '--topic', 'topic', required=True, default="", type=str, help="Introduce the input you want to subscribe." )
 def listen_topic( server, port, user, password, topic ):
+    """
 
+    """
     client = connect_MQTT( server, port, user, password, on_message )
-
     if topic != "":
 
+        topics_subscribed.append( topic )
         client.subscribe( topic )
-
         while True: # Keep Platform listening.
             pass
     else:
         
         print( "No topic selected." )
 
-# - [ ] TODO: Remove devices from list and KMS.
 @click.command()
 @click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Serve." )
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
 @click.option( '-i', '--idDevice', 'idDevice', required=True, default="", type=str, help="Introduce the id of the device you want to remove." )
 def remove_device( user, password, idDevice ):
     # TODO: Check if the device is registered in both platform and KMS.
+    # TODO: Remove device from list
     post_message = {
         # Data information to sent to KMS
-        "id": idDevice,
-        # TODO: Include information
+        "id": idDevice
     }
+    devices = getRegisteredDevices()
+    # Add the new registered device.
+    with open( REGISTERED_DEVICE_FILE, 'w' ) as file:
+    
+        del devices[idDevice]
+        json.dump( devices, file, indent=4 )
     message = requests.post( KMS_SERVER_URL+"remove-device", json = post_message, auth=( user, password ) )
+    if message.json().get( "status", "ERROR" ) == "OK":
+
+        print( "Device have been removed from KMS successfully.")
+    else:
+
+        print( "Fail during removing device from KMS.")
 
 if __name__ == '__main__':
     # This main process include the commands for the platform cli.
@@ -303,5 +547,5 @@ if __name__ == '__main__':
     cli.add_command( list_devices )
     cli.add_command( remove_device )
     cli.add_command( register )
-    # Add here a new command for devices.
+    # ADD HERE A NEW COMMNAD.
     cli()

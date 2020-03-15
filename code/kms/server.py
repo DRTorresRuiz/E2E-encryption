@@ -36,6 +36,7 @@ class FlaskThread( threading.Thread ):
         if not request.json or not 'id' in request.json: abort( 400 )
         
         topicsPublishNewKeys[request.json["id"]] = request.json['key_topic']
+        # TODO: Save secret into a file and into the array
         # Save into `registeredDeviceTopics.json` file
         with open( TOPIC_FILE, 'w' ) as file:
             json.dump( topicsPublishNewKeys, file, indent=4 )
@@ -78,7 +79,6 @@ def on_connect( client, userdata, flags, rc ):
 
   print( "KMS is ready to work." )
   print( "Connected with result code " + str( rc ) )
-  # TODO: Read all devices already connected.
 
 def start_flask():
     # Starting flask thread. RESTful service.
@@ -130,8 +130,9 @@ def connect( server, port, user, password ):
 
     start_flask()  
     # Load the information saved of the registered devices.
+    # TODO: Read all devices already connected.
     topicsPublishNewKeys = load_registered_device_topics()
-    #secretRegisteredDevices = load_registered_device_secrets()
+    # TODO: secretRegisteredDevices = load_registered_device_secrets()
     # Connect to MQTT Server.    
     client = mqtt.Client( client_id=CLIENT_ID )
     client.on_connect = on_connect

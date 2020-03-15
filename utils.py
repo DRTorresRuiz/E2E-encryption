@@ -10,6 +10,11 @@ from Crypto.Random import get_random_bytes
 from Crypto import Random
 from tinyec import registry
 import secrets
+from Crypto.PublicKey import RSA
+from base64 import b64encode
+from Crypto.Cipher import PKCS1_OAEP
+import sys
+
 
 import os
 import binascii
@@ -178,6 +183,10 @@ def compress(pubKey):
     return hex(pubKey.x) + hex(pubKey.y % 2)[2:]
 
 curve = registry.get_curve('brainpoolP256r1')
+print("Curve g",curve.g)
+
+curve = registry.get_curve('brainpoolP256r1')
+print("Curve g",curve.g)
 
 def ecdhGenKeys(curve):
     private_key = secrets.randbelow(curve.field.n)
@@ -243,6 +252,44 @@ def send( client, encriptor, msg ):
         client.publish( topic, encryptedMessage.decode( "utf-8" ) )
         return True
 
+
+
+msg = "hello..."
+
+if (len(sys.argv)>1):
+        msg=str(sys.argv[1])
+        
+key = RSA.generate(1024)
+
+binPrivKey = key.exportKey('PEM')
+binPubKey =  key.publickey().exportKey('PEM')
+
+print
+print ("====Private key===")
+print (binPrivKey)
+print
+print ("====Public key===")
+print (binPubKey)
+
+privKeyObj = RSA.importKey(binPrivKey)
+pubKeyObj =  RSA.importKey(binPubKey)
+
+
+cipher = PKCS1_OAEP.new(pubKeyObj)
+ciphertext = cipher.encrypt(msg.encode())
+
+print
+print ("====Ciphertext===")
+print (b64encode(ciphertext))
+
+cipher = PKCS1_OAEP.new(privKeyObj)
+message = cipher.decrypt(ciphertext)
+
+
+print
+print ("====Decrypted===")
+print ("Message:",message)
+
 """ # Elliptic Curve Diffie Hellman test
 # Generate a device private and public keys for use in the exchange.
 device_private_key, device_public_key = ecdhGenKeys(curve)
@@ -282,11 +329,14 @@ print ("HMAC (SHA384):", hmac.new(key, string, hashlib.sha384).hexdigest())
 print ("HMAC (SHA512):", hmac.new(key, string, hashlib.sha512).hexdigest()) """
 
 
-"""  # Test chacha20Polly1305
+""" # Test chacha20Polly1305
 header = b"header"
 msg = b'Test chacha20Polly1305'
 
 key = chacha20P1305GenKey()
+print(len(key))
+key
+
 encData = chacha20P1305Encrypt(key, msg, header)
 chacha20P1305Decrypt(key, encData)   """
 

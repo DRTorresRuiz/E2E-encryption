@@ -12,7 +12,7 @@ The `code` folder contains the code for the platform ( CLI and Web Platform ), t
 
 These are the task we are going into during this project:
 
-- [ ] **CLI for Devices**:
+- [x] **CLI for Devices**:
   - [x] *Authentication and Registration algorithms* used to connect to the platform via MQTT:
     - [x] Algorithm to connect an IoT Device without Input nor Output - only the Internet connection as output, and sensor values as inputs.
     - [x] Algorithm to connect an IoT Device with Input - such as a keyboard.
@@ -21,11 +21,11 @@ These are the task we are going into during this project:
     - [x] *Symmetric*. To send data to the platform via public MQTT topics:
       - [x] Fernet Simple Keys
       - [x] Chacha20 with Poly1305 authenticator
-    - [ ] *Asymmetric*. To cypher the keys in the Key Exchange Algorithms:
+    - [x] *Asymmetric*. To cypher the keys in the Key Exchange Algorithms:
       - [x] DH.
       - [x] HMAC DH.
       - [x] ECDH.
-      - [ ] Ephemeral Keys.
+      - [x] Ephemeral Keys.
 - [x] **KMS**:
   - [x] *Register a device into KMS*.
   - [x] *Key Rotation*. Send keys to device according to the specified symmetric algorithm:
@@ -34,13 +34,13 @@ These are the task we are going into during this project:
       - [x] Chacha20 with Poly1305 authenticator
   - [x] Provide the current key for a device.
   - [x] Provide the current key for all devices.
-- [ ] **Platform**:
-  - [ ] *CLI*:
+- [x] **Platform**:
+  - [x] *CLI*:
     - [x] Register new device:
       - [x] DH.
       - [x] HMAC DH.
       - [x] ECDH.
-      - [ ] Ephemeral Keys.
+      - [x] Ephemeral Keys.
     - [x] List devices / Topics.
     - [x] Remove devices.
     - [x] Subscribe and read from an specific topic:

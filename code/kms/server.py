@@ -161,7 +161,8 @@ def cli():
 @click.option( '-P', '--port', 'port', required=True, type=int, show_default=True, default=1883, help="Port of theMQTT Server to send keys." )
 @click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Serve." )
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
-def connect( server, port, user, password ):
+@click.option( '-t', '--time', 'time', required=True, type=int, default=10, help=" Time taken to send new keys." )
+def connect( server, port, user, password, time ):
     """
         Start KMS. It will start the RESTful at port 5000 and start the Key Rotation process.
     """
@@ -222,7 +223,7 @@ def connect( server, port, user, password ):
         # Save into `secret.json` file
         with open( SECRET_FILE, 'w' ) as file:
             json.dump( secretRegisteredDevices, file, indent=4 )
-        time.sleep( 10 )
+        time.sleep( time )
 
 if __name__ == '__main__':
   # This main process only include the `connect` command.

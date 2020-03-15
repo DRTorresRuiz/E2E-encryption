@@ -298,14 +298,13 @@ def list_devices():
     """
 
     """
-    # TODO: Improve by using getRegisteredDevices() function
-    filename = 'registeredDevices.json'
-    if os.path.exists( filename ):
-        with open( filename ) as file:
-
-            data = json.load( file )
-            for device_id, value in data.items():
-                print( "Device: ", device_id, " -> {\n\tData topic: ", value["data_topic"], "\n}" )
+    devices = getRegisteredDevices()
+    if devices == {}:
+        
+        print ( "No devices registered." )
+    else:
+        
+        print( json.dumps( devices, indent=4, sort_keys=True ) )
 
 def get_data_message( payload, secrets, symmetricAlgorithm ):
     """
@@ -389,7 +388,6 @@ def connect( server, port, user, password ):
     while True:      # Keep Platform listening.
         pass
 
-# - [x] Select and Read from an specific topic / device.
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send keys." )
 @click.option( '-P', '--port', 'port', required=True, type=int, show_default=True, default=1883, help="Port of theMQTT Server to send keys." )
@@ -411,7 +409,6 @@ def listen_topic( server, port, user, password, topic ):
         
         print( "No topic selected." )
 
-# - [ ] TODO: Remove devices from list and KMS.
 @click.command()
 @click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Serve." )
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )

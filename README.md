@@ -19,7 +19,7 @@ These are the task we are going into during this project:
     - [x] Algorithm to connect an IoT Device with Output - a kind of display.
   - [ ] *Supported Crypto Algorithms*:
     - [ ] *Symmetric*. To send data to the platform via public MQTT topics:
-      - [ ] Fernet Simple Keys
+      - [x] Fernet Simple Keys
       - [ ] Chacha20 with Poly1305 authenticator
     - [ ] *Asymmetric*. To cypher the keys in the Key Exchange Algorithms:
       - [x] DH.
@@ -29,9 +29,11 @@ These are the task we are going into during this project:
 - [ ] **KMS**:
   - [x] *Register a device into KMS*.
   - [ ] *Key Rotation*. Send keys to device according to the specified symmetric algorithm:
-    - [ ] Simple key algorithms
-  - [ ] Provide the current key for a device.
-  - [ ] Provide the current key for all devices.
+    - [ ] Simple key algorithms:
+      - [x] Fernet Simple Keys
+      - [ ] Chacha20 with Poly1305 authenticator
+  - [x] Provide the current key for a device.
+  - [x] Provide the current key for all devices.
 - [ ] **Platform**:
   - [ ] *CLI*:
     - [x] Register new device:
@@ -44,12 +46,12 @@ These are the task we are going into during this project:
     - [ ] Subscribe and read from an specific topic:
       - [x] Subscribe to an specific topic.
       - [ ] Read data from this selected topic. Support symmetric algorithms of encryption:
-        - [ ] Fernet Simple Keys
+        - [x] Fernet Simple Keys
         - [ ] Chacha20 with Poly1305 authenticator
     - [ ] Subscribe and read from all topics at the same time:
       - [x] Subscribe to all topics listed.
       - [ ] Read data from all topics. Support symmetric algorithms of encryption:
-        - [ ] Fernet Simple Keys
+        - [x] Fernet Simple Keys
         - [ ] Chacha20 with Poly1305 authenticator
   - [ ] *Web service*:
     - [ ] Register new device.

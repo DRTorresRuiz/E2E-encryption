@@ -3,6 +3,7 @@ from cryptography.fernet import Fernet, MultiFernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
+from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 from Crypto.Cipher import DES3, ChaCha20_Poly1305
@@ -141,11 +142,11 @@ def chacha20P1305Decrypt(key, encData):
 def dhParameters():
     # Generate parameters g and p
     parameters = dh.generate_parameters(generator=5, 
-                                    key_size=1024,
+                                    key_size=512,
                                     backend=default_backend())
 
-    print("g = %d"%parameters.parameter_numbers().g)
-    print("p = %d\n"%parameters.parameter_numbers().p)
+    # print("g = %d"%parameters.parameter_numbers().g)
+    # print("p = %d\n"%parameters.parameter_numbers().p)
     return parameters
 
 def dhGenKeys(parameters):
@@ -165,8 +166,9 @@ def dhGenSharedKey(private_key, remote_public_key):
         backend=default_backend()
     ).derive(shared_key)
 
-    print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
+    # print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
     return derived_key
+
 
 
 # Elliptic Curve Diffie–Hellman 
@@ -200,76 +202,93 @@ def ecdhGenSharedKey(private_key, remote_public_key):
     return derived_key
 
 
-# Elliptic Curve Diffie Hellman test
-# Generate a device private and public keys for use in the exchange.
-device_private_key, device_public_key = ecdhGenKeys(curve)
-# Generate a device private and public keys for use in the exchange.
-server_private_key, server_public_key = ecdhGenKeys(curve)
-# Generate a device shared key 
-device_shared_key = ecdhGenSharedKey(device_private_key, server_public_key)
-# Generate a server shared key
-server_shared_key = ecdhGenSharedKey(server_private_key, device_public_key)
+###################################
 
+def load_key( pubkey ):
+    """
+        Load public RSA key, with work-around for keys using
+        incorrect header/footer format.
 
-""" #Diffie Hellman test
-# Generate parameters g and p
-parameters = dhParameters()
-# Generate a device private and public keys for use in the exchange.
-device_private_key, device_public_key = dhGenKeys(parameters)
-# Generate a device private and public keys for use in the exchange.
-server_private_key, server_public_key = dhGenKeys(parameters)
-# Generate a device shared key 
-device_shared_key = dhGenSharedKey(device_private_key, server_public_key)
-# Generate a server shared key
-server_shared_key = dhGenSharedKey(server_private_key, device_public_key)
+        Read more about RSA encryption with cryptography:
+        https://cryptography.io/latest/hazmat/primitives/asymmetric/rsa/
+    """
+    try:
 
-header = b"header"
-msg = b'Test chacha20Polly1305'
-encData = chacha20P1305Encrypt(device_shared_key, msg, header)
-chacha20P1305Decrypt(device_shared_key, encData) """
+        return load_pem_public_key( pubkey.encode(), default_backend() )
+    except ValueError:
+        # workaround for https://github.com/travis-ci/travis-api/issues/196
+        pubkey = pubkey.replace( 'BEGIN RSA', 'BEGIN' ).replace( 'END RSA', 'END' )
+        return load_pem_public_key( pubkey.encode(), default_backend() ) 
 
+def send( client, encriptor, msg ):
+    """ 
+        This function sends a message to an specified topic.
+        Returns True if message was sent correctly, otherwise False. 
+        The `msg` need to include the `topic` parameter.
+    """
+    topic = msg.get( "topic", "" )
+    if topic == "":
 
-string = b"password"
-key=b"bill"    
-print ("HMAC (MD5):", hmac.new(key, string,hashlib.md5).hexdigest())
-print ("HMAC (SHA1):", hmac.new(key, string, hashlib.sha1).hexdigest())
-print ("HMAC (SHA224):", hmac.new(key, string, hashlib.sha224).hexdigest())
-print ("HMAC (SHA256):", hmac.new(key, string, hashlib.sha256).hexdigest())
-print ("HMAC (SHA384):", hmac.new(key, string, hashlib.sha384).hexdigest())
-print ("HMAC (SHA512):", hmac.new(key, string, hashlib.sha512).hexdigest())
+        print( "The following message couldn't be sent: ", msg )
+        return False
+    elif encriptor == None:
 
+        #print( "WARNING: Plain message sent. No encription have been applied in the following message: ", msg )
+        client.publish( topic, json.dumps( msg ) )
+        return False
+    else:
+        # Cypher the message before sending it.
+        message = json.dumps( msg )
+        encryptedMessage = encriptor.encrypt( message.encode() )
+        client.publish( topic, encryptedMessage.decode( "utf-8" ) )
+        return True
 
-"""  # Test chacha20Polly1305
-header = b"header"
-msg = b'Test chacha20Polly1305'
+def send_error( client, topic, error_message ):
+    """
+        This function sends an `error_message` to 
+        the topic specified.
+        Returns True if message was sent correctly, otherwise False.
+    """
+    if topic == "":
 
-key = chacha20P1305GenKey()
-encData = chacha20P1305Encrypt(key, msg, header)
-chacha20P1305Decrypt(key, encData)   """
+        print( "The following error message couldn't be sent to ", topic, ": ", error_message )
+        return False
+    else:
 
-""" # chacha20 Test
-m = b"test encriptacion chacha20 "
-c = chacha20GenKey()
-encm = chacha20Encrypt(c, m)
-chacha20Decrypt(c, encm) """
+        # Build and send an error_message
+        error = {
+            "topic": topic,
+            "error": error_message
+        }
+        print( "ERROR: ", error_message )
+        send( topic, None, error )
 
-""" # 3DES Test
-k, iv = tripleDESGenKey()
-m = b'Cifrado 3DES'
-encm = tripleDESEncryption(k, m, iv)
-tripleDESDecryption(k, encm, iv)  """
+def is_json( x ):
+    """
+        Verify if a string contains a JSON.
+        Ref: https://stackoverflow.com/a/11294685
+    """
+    try:
+        json.loads( x )
+    except ValueError:
+        return False
+    return True
 
-""" # Fernet test
-print("test encriptacion multi clave ")
-m = b"test encriptacion multi clave "
-f = multiKeysFernetGenKeys(4)
-t = fernetEncrypt(f, m)
-t = fernetKeyRotation(f,t)
-d = fernetDecrypt(f, t)
-
-print("test encriptacion clave simple")
-m = b"test encriptacion clave simple"
-f = simpleKeyFernetGenKey()
-t = fernetEncrypt(f, m)
-d= fernetDecrypt(f, t) """
-
+def get_message( payload, encriptor ):
+    """
+        Returns the message in JSON format, otherwise an empty string.
+        Checks if it is encrypted or not.
+    """
+    message = ""
+    if is_json( payload ):
+        # The message received is loaded as a dictionary by using json library.
+        message = json.loads( payload )
+    else:
+        # We try to decypher this message...
+        if encriptor != None:
+            encrypted_message = payload
+            possible_message = encriptor.decrypt( encrypted_message.encode() )
+            if is_json( possible_message ):
+                # If it is a JSON we continue the process...
+                message = json.loads( possible_message.decode( "utf-8" ) )
+    return message

@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
-from Crypto.Cipher import DES3, ChaCha20_Poly1305
+from chacha20poly1305 import ChaCha20Poly1305 
 from Crypto.Random import get_random_bytes
 from Crypto import Random
 from tinyec import registry
@@ -69,72 +69,6 @@ def fernetPrint(token):
     print ("IV(Salt):\t",cipher[18:50].decode("utf-8"))
     print ("Cypher:\t\t",cipher[50:-64].decode("utf-8"))
     print ("HMAC:\t\t",cipher[-64:].decode("utf-8"))
-
-
-# Deprecated alghoritm
-def tripleDESGenKey():
-    key = DES3.adjust_key_parity(get_random_bytes(24))
-    iv = Random.new().read(DES3.block_size)
-    return key,iv
-
-def tripleDESEncryption(key, msg, iv):
-    cipher = DES3.new(key, DES3.MODE_OFB, iv)
-    encryptedMsg = cipher.encrypt(msg)
-    print("3DES encripted msg:", binascii.hexlify(bytearray(encryptedMsg)).decode("utf-8"))
-    return encryptedMsg
-
-def tripleDESDecryption(key, encryptedMsg, iv):
-    cipher_decrypt = DES3.new(key, DES3.MODE_OFB, iv) 
-    decryptedMsg = cipher_decrypt.decrypt(encryptedMsg)
-    print("3DES decripted msg:", decryptedMsg.decode("utf-8"))
-    return decryptedMsg.decode("utf-8")
-    
-# Chacha20 without authenticator
-def chacha20GenKey():
-    key = os.urandom(32)
-    nonce = os.urandom(16)
-    algorithm = algorithms.ChaCha20(key, nonce)
-    cipher = Cipher(algorithm, mode=None, backend=default_backend())
-    return cipher
-
-def chacha20Encrypt(cipher, msg):
-    encryptor = cipher.encryptor()
-    encryptedMsg = encryptor.update(msg)
-    print("Chacha20 encripted msg:",binascii.hexlify(bytearray(encryptedMsg)).decode("utf-8"))
-    return encryptedMsg
-
-def chacha20Decrypt(cipher, encryptedMsg):
-    decryptor = cipher.decryptor()
-    msg = decryptor.update(encryptedMsg)
-    print("Chacha20 decripted msg:",msg.decode("utf-8"))
-    return msg.decode("utf-8")
-
-# Chacha20 with Poly1305 authenticator, Authenticated Encryption with Associated Data (AEAD) algorithm.
-
-def chacha20P1305GenKey():    
-    key = get_random_bytes(32)
-    return key
-
-def chacha20P1305Encrypt(key, msg, header):
-    cipher = ChaCha20_Poly1305.new(key=key)
-    cipher.update(header)
-    ciphertext, tag = cipher.encrypt_and_digest(msg)
-    jk = [ 'nonce', 'header', 'ciphertext', 'tag' ]
-    jv = [ b64encode(x).decode('utf-8') for x in (cipher.nonce, header, ciphertext, tag) ]
-    encData = json.dumps(dict(zip(jk, jv)))
-    print("Encripted data", encData)
-    return encData
-
-def chacha20P1305Decrypt(key, encData):    
-    b64 = json.loads(encData)
-    jk = [ 'nonce', 'header', 'ciphertext', 'tag' ]
-    jv = {k:b64decode(b64[k]) for k in jk}
-
-    cipher = ChaCha20_Poly1305.new(key=key, nonce=jv['nonce'])
-    cipher.update(jv['header'])
-    plaintext = cipher.decrypt_and_verify(jv['ciphertext'], jv['tag'])
-    print("Chacha20 decripted msg:",plaintext.decode("utf-8"))
-
 
 # Diffie Hellman 
 
@@ -229,8 +163,16 @@ def get_message( payload, encriptor ):
     else:
         # We try to decypher this message...
         if encriptor != None:
+
             encrypted_message = payload
-            possible_message = encriptor.decrypt( encrypted_message.encode() )
+            possible_message = ""
+            if isinstance( encriptor, Fernet ):
+                
+                possible_message = encriptor.decrypt( encrypted_message.encode() )
+            elif isinstance( encriptor, ChaCha20Poly1305 ):
+                
+                fixedNonce = b"147235869147"
+                possible_message = encriptor.decrypt( fixedNonce, encrypted_message.encode("latin-1") )
             if is_json( possible_message ):
                 # If it is a JSON we continue the process...
                 message = json.loads( possible_message.decode( "utf-8" ) )
@@ -255,9 +197,17 @@ def send( client, encriptor, msg ):
     else:
         # Cypher the message before sending it.
         message = json.dumps( msg )
-        encryptedMessage = encriptor.encrypt( message.encode() )
-        client.publish( topic, encryptedMessage.decode( "utf-8" ) )
-        return True
+        if isinstance( encriptor, Fernet ):
+
+            encryptedMessage = encriptor.encrypt( message.encode() )
+            client.publish( topic, encryptedMessage.decode( "utf-8" ) )
+            return True
+        elif isinstance( encriptor, ChaCha20Poly1305 ):
+
+            fixedNonce = b"147235869147"
+            encryptedMessage = encriptor.encrypt( fixedNonce, message.encode() )
+            client.publish( topic, encryptedMessage.decode("latin-1") )
+
 
 def send_error( client, topic, error_message ):
     """

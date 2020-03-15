@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding,
 from cryptography.hazmat.primitives.asymmetric import dh, rsa
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
+from chacha20poly1305 import ChaCha20Poly1305
 import paho.mqtt.client as mqtt
 from datetime import datetime
 from random import random
@@ -111,8 +112,10 @@ def on_registration( client, userdata, msg ):
 
                                 encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
                             elif symmetricAlgorithm == "chacha":
-
-                                print( "chacha not implemented yet." )
+                                
+                                print( shared_key )
+                                print( len(shared_key) )
+                                encriptor = ChaCha20Poly1305( shared_key )
                             # Building message two.
                             answer_registration_request = {
                                 "auth": {
@@ -200,9 +203,14 @@ def on_registration( client, userdata, msg ):
                                 "type": deviceType,
                                 "data_topic": data_topic,
                                 "key_topic": key_topic,
-                                "symmetric": symmetricAlgorithm,
-                                "shared_key": str( base64.urlsafe_b64encode( shared_key ).decode("utf-8") )
+                                "symmetric": symmetricAlgorithm
                             }
+                            if symmetricAlgorithm == "fernet":
+
+                                newDevice["shared_key"] = str( base64.urlsafe_b64encode( shared_key ).decode("utf-8") )
+                            elif symmetricAlgorithm == "chacha":
+                                
+                                newDevice["shared_key"] = shared_key.decode("latin-1")
                             msg_7 = True
                     if not msg_7:
 
@@ -322,7 +330,7 @@ def get_data_message( payload, secrets, symmetricAlgorithm ):
                 encriptor = Fernet( key.encode() )
             elif symmetricAlgorithm == "chacha":
 
-                print("Chacha not implemented yet.")
+                encriptor = ChaCha20Poly1305( key.encode("latin-1") )
 
             message = utils.get_message( payload, encriptor )
             if message == "":
@@ -335,7 +343,7 @@ def get_data_message( payload, secrets, symmetricAlgorithm ):
                         encriptor = Fernet( key.encode() )
                     elif symmetricAlgorithm == "chacha":
 
-                        print("Chacha not implemented yet.")
+                        encriptor = ChaCha20Poly1305( key.encode("latin-1") )
 
                     message = utils.get_message( payload, encriptor )
     return message 

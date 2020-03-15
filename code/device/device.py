@@ -1,6 +1,7 @@
 from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
+from chacha20poly1305 import ChaCha20Poly1305
 import paho.mqtt.client as mqtt
 from datetime import datetime
 from random import random
@@ -120,7 +121,8 @@ def on_registration( client, userdata, json_message ):
                     encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
                 elif symmetricAlgorithm == "chacha":
 
-                    print( "chacha not implemented yet." )
+                    encriptor = ChaCha20Poly1305( shared_key )
+                
                 if encriptor != None:
                     # Send KEY + 30 to show rightful to the platform.
                     key = shared_key+"30".encode()
@@ -195,7 +197,12 @@ def on_secure( client, userdata, json_message ):
     new_key = json_message.get( "key", "" )
     if new_key != "":
 
-        encriptor = Fernet( new_key.encode() )
+        if userdata["symmetric"] == "fernet":
+        
+            encriptor = Fernet( new_key.encode() )
+        elif userdata["symmetric"] == "chacha":
+
+            encriptor = ChaCha20Poly1305( new_key.encode("latin-1") )
         print( "Managing new keys received, ", json_message )
     
 def on_message( client, userdata, msg ):

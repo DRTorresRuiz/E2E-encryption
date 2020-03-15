@@ -2,6 +2,7 @@
 from flask import Flask, request, abort, jsonify, make_response
 from cryptography.fernet import Fernet
 from flask_httpauth import HTTPBasicAuth
+from chacha20poly1305 import ChaCha20Poly1305
 import paho.mqtt.client as mqtt
 import threading
 import base64
@@ -15,7 +16,7 @@ from sys import path
 path.append("../") # Add path to get utils.py
 import utils as utils # Include different common fucntions.
 
-CLIENT_ID               = "kms-muii"
+KMS_ID               = "kms-muii"
 TOPIC_FILE              = 'registeredDeviceTopics.json'
 SECRET_FILE             = 'secrets.json'
 
@@ -106,6 +107,16 @@ class FlaskThread( threading.Thread ):
     def run( self ):
         app.run()
 
+def add_header_message( message, topic ):
+    """
+        This functions adds information about the device
+        to send it to the platform.
+    """
+    message["id"]       = KMS_ID
+    message["topic"]    = topic
+
+    return message
+
 def on_connect( client, userdata, flags, rc ):
 
   print( "KMS is ready to work." )
@@ -162,7 +173,7 @@ def connect( server, port, user, password ):
     topicsPublishNewKeys = load_registered_device_topics()
     secretRegisteredDevices = load_registered_device_secrets()
     # Connect to MQTT Server.    
-    client = mqtt.Client( client_id=CLIENT_ID )
+    client = mqtt.Client( client_id=KMS_ID )
     client.on_connect = on_connect
     client.username_pw_set( user, password )
     client.connect( server, port, 60 )
@@ -176,24 +187,34 @@ def connect( server, port, user, password ):
             old_key = device_keys.get( "0", "" )
             if old_key != "":
                 
-                # TODO: chachaKey = utils.chacha20P1305GenKey()
-                new_key = Fernet.generate_key().decode("utf-8") 
-                if device_keys.get( "1", "" ) != "":
+                if secretRegisteredDevices[device]["symmetric"] == "fernet":
                     
-                    old_key = device_keys.get( "1" )
-                    secretRegisteredDevices[device]["secrets"]["0"] = old_key
-                secretRegisteredDevices[device]["secrets"]["1"] = new_key
-                print( device, " -> ", old_key )
-                encriptor = Fernet( old_key.encode() )
-                print( device, " -> ", new_key )
-                secret_message = {
-                    "id": CLIENT_ID,
-                    "deviceID": device,
-                    "topic": topic,
-                    "key": new_key
-                }
-                utils.send( client, encriptor, secret_message )
-                print( device, '->', topic )
+                    new_key = Fernet.generate_key().decode("utf-8") 
+                elif secretRegisteredDevices[device]["symmetric"] == "chacha":
+
+                    new_key = os.urandom(32).decode("latin-1")
+                if new_key != "":
+                    if device_keys.get( "1", "" ) != "":
+                        
+                        old_key = device_keys.get( "1" )
+                        secretRegisteredDevices[device]["secrets"]["0"] = old_key
+                    secretRegisteredDevices[device]["secrets"]["1"] = new_key
+                    print( device, " -> ", old_key )
+                    if secretRegisteredDevices[device]["symmetric"] == "fernet":
+                        
+                        encriptor = Fernet( old_key.encode() )
+                    elif secretRegisteredDevices[device]["symmetric"] == "chacha":
+
+                        encriptor = ChaCha20Poly1305( old_key.encode("latin-1") )
+
+                    print( device, " -> ", new_key )
+                    secret_message = {
+                        "deviceID": device,
+                        "key": new_key
+                    }
+                    message = add_header_message( secret_message, topic )
+                    utils.send( client, encriptor, message )
+                    print( device, '->', topic )
             else:
 
                 print( "Device: ", device, " has not a first key. Remove it from list and connect it again.")

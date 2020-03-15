@@ -1,5 +1,6 @@
 #!flask/bin/python
 from flask import Flask, request, abort, jsonify, make_response
+from cryptography.fernet import Fernet
 from flask_httpauth import HTTPBasicAuth
 import paho.mqtt.client as mqtt
 import threading
@@ -7,6 +8,10 @@ import click
 import time
 import json
 import os
+import sys
+
+sys.path.append('')
+import utils
 
 CLIENT_ID               = "kms-muii"
 TOPIC_FILE = 'registeredDeviceTopics.json'
@@ -98,20 +103,6 @@ def load_registered_device_topics():
         data = json.load( file )
     return data 
 
-def send( client, msg ):
-    # This function sends a message to an specified topic.
-    # Returns True if message was sent correctly, otherwise False. 
-    # The `msg` need to include the `topic` parameter.
-    topic = msg.get( "topic", "" )
-    if topic != "":
-
-        client.publish( topic, json.dumps( msg ), 2 )
-        return True
-    else:
-
-        print( "The following message couldn't be sent: ", msg )
-        return False
-
 @click.group()
 def cli():
     pass
@@ -143,15 +134,32 @@ def connect( server, port, user, password ):
         # TODO: Reset keys after a while for each device
         for device, topic in topicsPublishNewKeys.items(): 
             # TODO: For each device, change its key depending on the algorithm requested by the device.
+
+
+
+            #fernetKey = utils.simpleFernetGenKey()
+            chachaKey = utils.chacha20P1305GenKey()
+
             print( device, '->', topic )
             new_key = {
                 "id": CLIENT_ID,
                 "deviceID": device,
                 "topic": topic,
-                "key": "HEY, I'M A KEY",
+                "key": fernetKey.decode("UTF-8") ,
                 "protocol": "TEST"
             }
-            send( client, new_key )
+
+"""             new_key = {
+                "id": CLIENT_ID,
+                "deviceID": device,
+                "topic": topic,
+                "key": chachaKey.decode("UTF-8") ,
+                "protocol": "TEST"
+            } """
+            print("key", new_key["key"])
+            #encrypted_msg = utils.fernetEncrypt(fernetKey, json.dumps(new_key).encode())
+            
+            utils.send( client, None, new_key )
         time.sleep( 10 )
 
 if __name__ == '__main__':

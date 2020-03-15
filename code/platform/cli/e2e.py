@@ -1,3 +1,4 @@
+from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
 from datetime import datetime
 from random import random

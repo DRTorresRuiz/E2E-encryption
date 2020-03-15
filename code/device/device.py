@@ -1,3 +1,4 @@
+from cryptography.fernet import Fernet
 import asyncio
 import json
 import threading
@@ -7,12 +8,17 @@ from random import random
 
 import click
 import paho.mqtt.client as mqtt
+import sys
+
+sys.path.append('')
+import utils
 
 # Topic used to connect to the platform through the MQTT Server.
 REGISTRATION_TOPIC = "register" 
 
+symetric_key       = ""                    # Symetric Key used for encryption
 data_topic         = ""                    # Topic used to send values from sensors.
-key_topic         = ""                    # Topic used to receives values from KMS.
+key_topic          = ""                    # Topic used to receives values from KMS.
 connected          = asyncio.Semaphore(0)  # Semaphore to control the connection with the Platform
 verificationCode   = "000000"              # Only valid for noIO Devices
 codeIntroduced     = False
@@ -157,7 +163,11 @@ def on_registration( client, userdata, json_message ):
         connected.release()
 
 def on_secure( client, userdata, json_message ):
-    # TODO: Manage new keys.
+    global symetric_key
+    
+    #decrypted_json_message = utils.fernetDecrypt(symetric_key, json_message)
+    symetric_key = json_message["key"]  
+    print("symetric_key",symetric_key)
     print( "Managing new keys received, ", json_message )
 
 def on_message( client, userdata, msg ):
@@ -175,7 +185,6 @@ def on_message( client, userdata, msg ):
 
             on_registration( client, userdata, message )
         elif key_topic != "" and topic == key_topic:
-
             on_secure( client, userdata, message ) 
 
 def connect_MQTT( userdata, serverinfo ):
@@ -199,6 +208,8 @@ def wait_til( flag, time ):
 
 def send_data( client, userdata ):
 
+    global symetric_key
+    
     new_message = {
         "id": userdata["id"],
         "type": userdata["type"],
@@ -209,8 +220,18 @@ def send_data( client, userdata ):
         }
         # TODO: Add another information for the registration process.
     }
+
+    if symetric_key != "":
+        if userdata["symmetric"] == "fernet": 
+            utils.send(client, Fernet(symetric_key), new_message) 
+        elif userdata["symmetric"] == 'chacha': 
+            print("chacha")
+            #utils.send(client, symetric_key, new_message, header) 
+
+
     print( "[", datetime.now() ,"] Value sent: ", new_message )
-    send( client, new_message )
+    #send( client, new_message )
+
 
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send data." )
@@ -220,7 +241,9 @@ def send_data( client, userdata ):
 @click.option( '-t', '--device-type', 'typeDevice', type=click.Choice(['noIO','I','O']), default="noIO", help="The type of the device. Your choice will affect the way your device connects to the platform. noIO - without any entrance nor output; I - with one keyboard input available; O - the O letter indicates a device with one display." )
 @click.option( '-i', '--identification', 'idDevice', type=str, default="", help="The Device ID you want to use. If not specified, it will be generated randomly." )
 @click.option( '-T', '--time', 'time', type=int, default=10, show_default=True, help="Time passed to send new data from device to platform." )
-def start( server, port, user, password, typeDevice, idDevice, time ):
+@click.option( '-c', '--symmetric', 'symmetricAlgorithm', type=click.Choice(['fernet', 'chacha']), default="fernet", help="The symmetric algorithm used to send the data to platform.")
+@click.option( '-a', '--asymmetric', 'asymmetricAlgorithm', type=click.Choice(['dh', 'ecdh']), default="dh", help="The asymmetric algorithm used to establish the communication.")
+def start( server, port, user, password, typeDevice, idDevice, time, symmetricAlgorithm, asymmetricAlgorithm ):
     """
         Start an IoT device and connect it to the platform.
     """
@@ -230,7 +253,9 @@ def start( server, port, user, password, typeDevice, idDevice, time ):
     userdata = {
         # Data information about the Device
         "id": idDevice if idDevice != "" else "device-" + str( round( random() * 1000000 ) ),
-        "type": typeDevice
+        "type": typeDevice,
+        "symmetric": symmetricAlgorithm,
+        "asymmetric": asymmetricAlgorithm
     }
     serverinfo = {
         # Information to connect to the MQTT Server

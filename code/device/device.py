@@ -19,6 +19,7 @@ import utils as utils # Include different common functions.
 # Topic used to connect to the platform through the MQTT Server.
 REGISTRATION_TOPIC = "register" 
 
+symetric_key       = ""                    # Symetric Key used for encryption
 data_topic         = ""                    # Topic used to send values from sensors.
 key_topic          = ""                    # Topic used to receives values from KMS.
 encriptor          = None
@@ -188,9 +189,15 @@ def on_registration( client, userdata, json_message ):
         connected.release()
 
 def on_secure( client, userdata, json_message ):
-    # TODO: Manage new keys.
-    print( "Managing new keys received, ", json_message )
+    
+    global encriptor
 
+    new_key = json_message.get( "key", "" )
+    if new_key != "":
+
+        encriptor = Fernet( new_key.encode() )
+        print( "Managing new keys received, ", json_message )
+    
 def on_message( client, userdata, msg ):
     # This function receives different messages from topics to which this device
     # is subscribed. 
@@ -235,6 +242,7 @@ def wait_til( flag, time, message ):
 
 def send_data( client, userdata ):
 
+    global encriptor
     new_message = {
         "id": userdata["id"],
         "type": userdata["type"],
@@ -243,7 +251,6 @@ def send_data( client, userdata ):
             "sensor1": random(),
             "sensor2": random()
         }
-        # TODO: Add another information for the registration process.
     }
     print( "[", datetime.now() ,"] Value sent: ", new_message )
     utils.send( client, encriptor, new_message )

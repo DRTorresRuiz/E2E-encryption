@@ -1,5 +1,4 @@
 from cryptography.fernet import Fernet, MultiFernet
-
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
@@ -38,12 +37,13 @@ def multiKeysFernetGenKeys(keysNumber):
     f = MultiFernet(keys)
     return f
 
-def simpleKeyFernetGenKey():
+def simpleFernetGenKey():
     #generate fernet keys for encrytp and decrypt data
-    f=Fernet(Fernet.generate_key())
-    return f
+    key=Fernet.generate_key()
+    return key
 
-def fernetEncrypt(f, message):
+def fernetEncrypt(key, message):
+    f = Fernet(key)
     # encrypt data
     token = f.encrypt(message)
     fernetPrint(token)
@@ -169,8 +169,6 @@ def dhGenSharedKey(private_key, remote_public_key):
     # print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
     return derived_key
 
-
-
 # Elliptic Curve Diffie–Hellman 
 # The elliptic curve used for the ECDH calculations is 256-bit named curve brainpoolP256r1. The 
 # private keys are 256-bit (64 hex digits) and are generated randomly. The public keys will be 
@@ -201,7 +199,6 @@ def ecdhGenSharedKey(private_key, remote_public_key):
     print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
     return derived_key
 
-
 ###################################
 
 def load_key( pubkey ):
@@ -219,6 +216,25 @@ def load_key( pubkey ):
         # workaround for https://github.com/travis-ci/travis-api/issues/196
         pubkey = pubkey.replace( 'BEGIN RSA', 'BEGIN' ).replace( 'END RSA', 'END' )
         return load_pem_public_key( pubkey.encode(), default_backend() ) 
+
+def get_message( payload, encriptor ):
+    """
+        Returns the message in JSON format, otherwise an empty string.
+        Checks if it is encrypted or not.
+    """
+    message = ""
+    if is_json( payload ):
+        # The message received is loaded as a dictionary by using json library.
+        message = json.loads( payload )
+    else:
+        # We try to decypher this message...
+        if encriptor != None:
+            encrypted_message = payload
+            possible_message = encriptor.decrypt( encrypted_message.encode() )
+            if is_json( possible_message ):
+                # If it is a JSON we continue the process...
+                message = json.loads( possible_message.decode( "utf-8" ) )
+    return message
 
 def send( client, encriptor, msg ):
     """ 
@@ -273,22 +289,3 @@ def is_json( x ):
     except ValueError:
         return False
     return True
-
-def get_message( payload, encriptor ):
-    """
-        Returns the message in JSON format, otherwise an empty string.
-        Checks if it is encrypted or not.
-    """
-    message = ""
-    if is_json( payload ):
-        # The message received is loaded as a dictionary by using json library.
-        message = json.loads( payload )
-    else:
-        # We try to decypher this message...
-        if encriptor != None:
-            encrypted_message = payload
-            possible_message = encriptor.decrypt( encrypted_message.encode() )
-            if is_json( possible_message ):
-                # If it is a JSON we continue the process...
-                message = json.loads( possible_message.decode( "utf-8" ) )
-    return message

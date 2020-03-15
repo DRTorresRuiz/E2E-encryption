@@ -1,15 +1,23 @@
 #!flask/bin/python
 from flask import Flask, request, abort, jsonify, make_response
+from cryptography.fernet import Fernet
 from flask_httpauth import HTTPBasicAuth
 import paho.mqtt.client as mqtt
 import threading
+import base64
 import click
 import time
 import json
 import os
+import sys
+
+from sys import path
+path.append("../") # Add path to get utils.py
+import utils as utils # Include different common fucntions.
 
 CLIENT_ID               = "kms-muii"
-TOPIC_FILE = 'registeredDeviceTopics.json'
+TOPIC_FILE              = 'registeredDeviceTopics.json'
+SECRET_FILE             = 'secrets.json'
 
 topicsPublishNewKeys    = {}
 secretRegisteredDevices = {}
@@ -31,32 +39,62 @@ class FlaskThread( threading.Thread ):
     @app.route( '/register-device', methods=['POST'] )
     @auth.login_required
     def register( ):
-        global topicsPublishNewKeys
 
-        if not request.json or not 'id' in request.json: abort( 400 )
-        
+        global topicsPublishNewKeys, secretRegisteredDevices
+        if not request.json or not 'id' in request.json or \
+        not 'key_topic' in request.json or \
+        not 'shared_key' in request.json or \
+        not 'symmetric' in request.json: 
+            abort( 400 )
+
         topicsPublishNewKeys[request.json["id"]] = request.json['key_topic']
-        # TODO: Save secret into a file and into the array
+        secretRegisteredDevices[request.json["id"]] = {
+            "secrets": {
+                "0": request.json["shared_key"]
+            },
+            "symmetric": request.json["symmetric"] # Symmetric Algorithm used.
+        }
         # Save into `registeredDeviceTopics.json` file
         with open( TOPIC_FILE, 'w' ) as file:
             json.dump( topicsPublishNewKeys, file, indent=4 )
-        return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
+        # Save into `secret.json` file
+        with open( SECRET_FILE, 'w' ) as file:
+            json.dump( secretRegisteredDevices, file, indent=4 )
+        return jsonify( {"status": "OK"} ), 201
         
     @app.route( '/remove-device', methods=['POST'] )
     @auth.login_required
     def remove( ):
-        global topicsPublishNewKeys
 
+        global topicsPublishNewKeys, secretRegisteredDevices
         if not request.json or not 'id' in request.json: abort( 400 )
-        
-        # TODO: Contorl that the id exists.
+        # TODO: Control that the id exists.
         del topicsPublishNewKeys[request.json["id"]]
         del secretRegisteredDevices[request.json["id"]]
         # Save into `registeredDeviceTopics.json` file
         with open( TOPIC_FILE, 'w' ) as file:
             json.dump( topicsPublishNewKeys, file, indent=4 )
-        return jsonify( {"key_topics": topicsPublishNewKeys} ), 201
-        
+        # Save into `secret.json` file
+        with open( SECRET_FILE, 'w' ) as file:
+            json.dump( secretRegisteredDevices, file, indent=4 )
+        return jsonify( {"status": "OK"} ), 201
+    
+    @app.route( '/get-key', methods=['POST'] )
+    @auth.login_required
+    def get_key( ):
+
+        global secretRegisteredDevices
+        if not request.json or not 'id' in request.json: abort( 400 )
+        return jsonify( secretRegisteredDevices[request.json["id"]] ), 201
+
+    @app.route( '/get-all-keys', methods=['POST'] )
+    @auth.login_required
+    def get_all_keys( ):
+
+        global secretRegisteredDevices
+        return jsonify( secretRegisteredDevices ), 201
+
+
     @auth.error_handler
     def unauthorized( ):
         return make_response( jsonify( {'error': 'Unauthorized access'} ), 401 )
@@ -65,13 +103,6 @@ class FlaskThread( threading.Thread ):
     def not_found( error ):
         return make_response( jsonify( {'error': 'Not found'} ), 404 )
      
-    # TODO: SEPARATE TASKS in routes
-    # - [x] Register new device.
-    # - [ ] TODO: Send keys to all topics.
-    # - [x] Remove devices.
-    # - [ ] TODO: Send a specific key to the platform.
-    # - [ ] TODO: Send all keys to the platform.
-    
     def run( self ):
         app.run()
 
@@ -98,19 +129,17 @@ def load_registered_device_topics():
         data = json.load( file )
     return data 
 
-def send( client, msg ):
-    # This function sends a message to an specified topic.
-    # Returns True if message was sent correctly, otherwise False. 
-    # The `msg` need to include the `topic` parameter.
-    topic = msg.get( "topic", "" )
-    if topic != "":
-
-        client.publish( topic, json.dumps( msg ), 2 )
-        return True
-    else:
-
-        print( "The following message couldn't be sent: ", msg )
-        return False
+def load_registered_device_secrets():
+    # Load from the `registerDeviceTopics.json` file to get the topics
+    # where to publish the keys for a device. If the file does not exit, 
+    # it will be created.
+    if not os.path.exists( SECRET_FILE ):
+        # If file does not exit, it will be created.
+        with open( SECRET_FILE, 'w') as file: file.write("{}") 
+    with open( SECRET_FILE ) as file:
+        # Group previous devices registered
+        data = json.load( file )
+    return data 
 
 @click.group()
 def cli():
@@ -130,9 +159,8 @@ def connect( server, port, user, password ):
 
     start_flask()  
     # Load the information saved of the registered devices.
-    # TODO: Read all devices already connected.
     topicsPublishNewKeys = load_registered_device_topics()
-    # TODO: secretRegisteredDevices = load_registered_device_secrets()
+    secretRegisteredDevices = load_registered_device_secrets()
     # Connect to MQTT Server.    
     client = mqtt.Client( client_id=CLIENT_ID )
     client.on_connect = on_connect
@@ -141,18 +169,38 @@ def connect( server, port, user, password ):
     client.loop_start()
 
     while True:    
-        # TODO: Reset keys after a while for each device
+
         for device, topic in topicsPublishNewKeys.items(): 
-            # TODO: For each device, change its key depending on the algorithm requested by the device.
-            print( device, '->', topic )
-            new_key = {
-                "id": CLIENT_ID,
-                "deviceID": device,
-                "topic": topic,
-                "key": "HEY, I'M A KEY",
-                "protocol": "TEST"
-            }
-            send( client, new_key )
+
+            device_keys = secretRegisteredDevices[device]["secrets"]
+            old_key = device_keys.get( "0", "" )
+            if old_key != "":
+                
+                # TODO: chachaKey = utils.chacha20P1305GenKey()
+                new_key = Fernet.generate_key().decode("utf-8") 
+                if device_keys.get( "1", "" ) != "":
+                    
+                    old_key = device_keys.get( "1" )
+                    secretRegisteredDevices[device]["secrets"]["0"] = old_key
+                secretRegisteredDevices[device]["secrets"]["1"] = new_key
+                print( device, " -> ", old_key )
+                encriptor = Fernet( old_key.encode() )
+                print( device, " -> ", new_key )
+                secret_message = {
+                    "id": CLIENT_ID,
+                    "deviceID": device,
+                    "topic": topic,
+                    "key": new_key
+                }
+                utils.send( client, encriptor, secret_message )
+                print( device, '->', topic )
+            else:
+
+                print( "Device: ", device, " has not a first key. Remove it from list and connect it again.")
+        
+        # Save into `secret.json` file
+        with open( SECRET_FILE, 'w' ) as file:
+            json.dump( secretRegisteredDevices, file, indent=4 )
         time.sleep( 10 )
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@ import base64
 import click
 import json
 import os
+import re
 
 from sys import path
 path.append("../../") # Add path to get utils.py
@@ -23,6 +24,11 @@ REGISTERED_DEVICE_FILE = 'registeredDevices.json'
 KMS_SERVER_URL         = "http://127.0.0.1:5000/"
 
 #####
+### Parameters used for the listening process
+#####
+topics_subscribed      = []
+
+#####
 ### Parameters used for the registration process
 #####
 connected              = asyncio.Semaphore(0)   # Semaphore to control the connection with the Device
@@ -31,7 +37,7 @@ msg_3                  = False
 msg_5                  = False
 msg_7                  = False
 verificationCode       = ""
-connection_failed                   = False
+connection_failed      = False
 newDevice              = {}
 public_key             = ""
 private_key            = ""
@@ -194,7 +200,8 @@ def on_registration( client, userdata, msg ):
                                 "type": deviceType,
                                 "data_topic": data_topic,
                                 "key_topic": key_topic,
-                                # TODO: Add SHARED_KEY
+                                "symmetric": symmetricAlgorithm,
+                                "shared_key": str( base64.urlsafe_b64encode( shared_key ).decode("utf-8") )
                             }
                             msg_7 = True
                     if not msg_7:
@@ -208,7 +215,11 @@ def on_registration( client, userdata, msg ):
 
 def connect_MQTT( server, port, user, password, message_handler ):
     """ Connection to MQTT Server."""
-    client = mqtt.Client( client_id=PLATFORM_ID )
+    userdata ={
+        "user": user,
+        "password": password
+    }
+    client = mqtt.Client( client_id=PLATFORM_ID, userdata=userdata)
     client.on_message = message_handler
     client.username_pw_set( user, password )
     client.connect( server, port, 60 )
@@ -262,18 +273,18 @@ def register( server, port, user, password ):
         with open( REGISTERED_DEVICE_FILE, 'w' ) as file:
       
             devices[newDevice["id"]] = {
-                "data_topic": newDevice["data_topic"] 
-                # TODO: Include more information
-                # TODO: Include symmetricAlgorithm
+                "data_topic": newDevice["data_topic"],
+                "type": newDevice["type"],
+                "symmetric": newDevice["symmetric"]
             }
             json.dump( devices, file, indent=4 )
         # Registered Devices into KMS
         post_message = {
             # Data information to sent to KMS
             "id": newDevice["id"],
-            "key_topic": newDevice["key_topic"]
-            # TODO: Include information about algorithms
-            # TODO: Include shared KEY to send first key from KMS
+            "key_topic": newDevice["key_topic"],
+            "symmetric": newDevice["symmetric"],
+            "shared_key": newDevice["shared_key"]
         }
         message = requests.post( KMS_SERVER_URL+"register-device", json = post_message, auth=( user, password ) )
         print( "Device successfully added to KMS: ", message.json() )
@@ -287,18 +298,70 @@ def list_devices():
     """
 
     """
+    # TODO: Improve by using getRegisteredDevices() function
     filename = 'registeredDevices.json'
     if os.path.exists( filename ):
         with open( filename ) as file:
 
             data = json.load( file )
-            for key, value in data.items():
-                print( "Device: ", key, " -> {\n\tData topic: ", value["data_topic"], "\n}" )
+            for device_id, value in data.items():
+                print( "Device: ", device_id, " -> {\n\tData topic: ", value["data_topic"], "\n}" )
+
+def get_data_message( payload, secrets, symmetricAlgorithm ):
+    """
+
+    """
+    message = "" 
+    if secrets != None and symmetricAlgorithm != None:
+
+        key = secrets.get( "1", "" )
+        encriptor = None
+        if key != "":
+            
+            if symmetricAlgorithm == "fernet":
+                
+                encriptor = Fernet( key.encode() )
+            elif symmetricAlgorithm == "chacha":
+
+                print("Chacha not implemented yet.")
+
+            message = utils.get_message( payload, encriptor )
+            if message == "":
+                key = secrets.get( "0", "" )
+                encriptor = None
+                if key != "":
+                    
+                    if symmetricAlgorithm == "fernet":
+                        
+                        encriptor = Fernet( key.encode() )
+                    elif symmetricAlgorithm == "chacha":
+
+                        print("Chacha not implemented yet.")
+
+                    message = utils.get_message( payload, encriptor )
+    return message 
 
 def on_message( client, userdata, msg ):
-    # Receiving from all topics subscribed.
-    # TODO: Ask KMS for Keys.
-    print( msg.topic + " " + str( msg.payload ) )
+    """
+        Receiving from all topics subscribed.
+    """
+    global topics_subscribed
+    if msg.topic in topics_subscribed:
+        
+        pattern = r'(device\-\d+)'
+        match = re.search( pattern, msg.topic )
+        if match:
+
+            device_id = match.group()
+            # Registered Devices into KMS
+            secret_request = {
+                # Data information to sent to KMS
+                "id": device_id
+            }
+            secrets = requests.post( KMS_SERVER_URL+"get-key", json = secret_request, auth=( userdata["user"], userdata["password"] ) ).json()
+            message = get_data_message( str( msg.payload.decode( "utf-8" ) ), secrets.get( "secrets", None), secrets.get( "symmetric", None ) )
+            if message != "":
+                print( message )
 
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send keys." )
@@ -309,6 +372,7 @@ def connect( server, port, user, password ):
     """
 
     """
+    global topics_subscribed
     client = connect_MQTT( server, port, user, password, on_message )
     # Subscribe to all topics included in registeredDevices.json file.
     # TODO: Check if KMS is alive.
@@ -319,6 +383,8 @@ def connect( server, port, user, password ):
 
             data = json.load( file )
             for key, value in data.items():
+
+                topics_subscribed.append( value["data_topic"] )
                 client.subscribe( value["data_topic"] )
     while True:      # Keep Platform listening.
         pass
@@ -337,6 +403,7 @@ def listen_topic( server, port, user, password, topic ):
     client = connect_MQTT( server, port, user, password, on_message )
     if topic != "":
 
+        topics_subscribed.append( topic )
         client.subscribe( topic )
         while True: # Keep Platform listening.
             pass
@@ -354,10 +421,21 @@ def remove_device( user, password, idDevice ):
     # TODO: Remove device from list
     post_message = {
         # Data information to sent to KMS
-        "id": idDevice,
-        # TODO: Include information
+        "id": idDevice
     }
+    devices = getRegisteredDevices()
+    # Add the new registered device.
+    with open( REGISTERED_DEVICE_FILE, 'w' ) as file:
+    
+        del devices[idDevice]
+        json.dump( devices, file, indent=4 )
     message = requests.post( KMS_SERVER_URL+"remove-device", json = post_message, auth=( user, password ) )
+    if message.json().get( "status", "ERROR" ) == "OK":
+
+        print( "Device have been removed from KMS successfully.")
+    else:
+
+        print( "Fail during removing device from KMS.")
 
 if __name__ == '__main__':
     # This main process include the commands for the platform cli.

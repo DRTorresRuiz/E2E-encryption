@@ -133,3 +133,4 @@ dmypy.json
 
 registeredDevices.json
 registeredDeviceTopics.json
+secrets.json

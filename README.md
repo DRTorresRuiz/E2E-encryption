@@ -19,54 +19,38 @@ These are the task we are going into during this project:
     - [x] Algorithm to connect an IoT Device with Output - a kind of display.
   - [ ] *Supported Crypto Algorithms*:
     - [ ] *Symmetric*. To send data to the platform via public MQTT topics:
-      - [ ] **Fernet**:
-        - [ ] Simple key.
-        - [ ] Multi-keys.
-        - [ ] AEAD Algorithm. Different approaches:
-          - [ ] EtA
-          - [ ] AtE
-          - [ ] E&A
-      - [ ] TripleDES.
+      - [ ] Fernet Simple Keys
+      - [ ] Chacha20 with Poly1305 authenticator
     - [ ] *Asymmetric*. To cypher the keys in the Key Exchange Algorithms:
+      - [x] DH.
       - [ ] HMAC DH.
       - [ ] ECDH.
+      - [ ] Ephemeral Keys.
 - [ ] **KMS**:
   - [x] *Register a device into KMS*.
   - [ ] *Key Rotation*. Send keys to device according to the specified symmetric algorithm:
-    - [ ] **Fernet**:
-      - [ ] Simple key
-      - [ ] Multi-key
-    - [ ] TripleDES.
-  - [ ] *Support different Key Exchange Algorithms*:
-    - [ ] HMAC DH.
-    - [ ] ECDH.
+    - [ ] Simple key algorithms
   - [ ] Provide the current key for a device.
   - [ ] Provide the current key for all devices.
 - [ ] **Platform**:
   - [ ] *CLI*:
-    - [x] Register new device.
-    - [ ] List devices / Topics.
-    - [ ] Remove devices.
+    - [x] Register new device:
+      - [x] DH.
+      - [ ] HMAC DH.
+      - [ ] ECDH.
+      - [ ] Ephemeral Keys.
+    - [x] List devices / Topics.
+    - [x] Remove devices.
     - [ ] Subscribe and read from an specific topic:
-      - [ ] Subscribe to an specific topic.
-      - [ ] Read data from this selected topic:
-        - [ ] Simple key.
-        - [ ] Multi-keys.
-        - [ ] AEAD Algorithm. Different approaches:
-          - [ ] EtA
-          - [ ] AtE
-          - [ ] E&A
-        - [ ] TripleDES.
+      - [x] Subscribe to an specific topic.
+      - [ ] Read data from this selected topic. Support symmetric algorithms of encryption:
+        - [ ] Fernet Simple Keys
+        - [ ] Chacha20 with Poly1305 authenticator
     - [ ] Subscribe and read from all topics at the same time:
       - [x] Subscribe to all topics listed.
-      - [ ] Read data from all topics - this should ask KMS for diferrent keys:
-        - [ ] Simple key.
-          - [ ] Multi-keys.
-          - [ ] AEAD Algorithm. Different approaches:
-            - [ ] EtA
-            - [ ] AtE
-            - [ ] E&A
-          - [ ] TripleDES.
+      - [ ] Read data from all topics. Support symmetric algorithms of encryption:
+        - [ ] Fernet Simple Keys
+        - [ ] Chacha20 with Poly1305 authenticator
   - [ ] *Web service*:
     - [ ] Register new device.
     - [ ] List devices / topics.

@@ -55,10 +55,10 @@ These are the task we are going into during this project:
         - [x] Chacha20 with Poly1305 authenticator
   - [ ] *Web service*:
     - [ ] Register new device.
-    - [ ] List devices / topics.
+    - [x] List devices / topics.
     - [ ] Remove devices.
-    - [ ] Subscribe and read from an specific topic.
-    - [ ] Subscribe and read from all topics at the same time.
+    - [x] Subscribe and read from an specific topic.
+    - [x] Subscribe and read from all topics at the same time.
 
 ## Running our code
 

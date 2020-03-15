@@ -157,7 +157,7 @@ def get_message( payload, encriptor, hash_key ):
         Checks if it is encrypted or not.
     """
     message = ""
-    trusful = True
+    trustful = True
     if is_json( payload ):
         # The message received is loaded as a dictionary by using json library.
         message = json.loads( payload )
@@ -198,9 +198,9 @@ def get_message( payload, encriptor, hash_key ):
             if _wrap != wrap:
                 
                 message = ""
-                trusful = False
-                print( "Not trustful message.")
-    return message, trusful
+                trustful = False
+                print( "Not trustful message.") 
+    return message, trustful
 
 def send( client, encriptor, msg ):
     """ 

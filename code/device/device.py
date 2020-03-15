@@ -1,10 +1,11 @@
 from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
 from cryptography.hazmat.backends import default_backend
-from cryptography.fernet import Fernet
 from chacha20poly1305 import ChaCha20Poly1305
+from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
 from datetime import datetime
 from random import random
+import tinyec.ec as ec
 import threading
 import time as t
 import asyncio
@@ -37,9 +38,9 @@ msg_2              = False
 msg_4              = False
 msg_6              = False
 connection_failed  = False
-parameters         = utils.dhParameters()
-private_key        = parameters.generate_private_key()
-public_key         = private_key.public_key()
+parameters         = None
+private_key        = None
+public_key         = None
 shared_key         = ""
 
 @click.group()
@@ -73,22 +74,40 @@ def on_connect( client, userdata, flags, rc ):
         a registration request through the REGISTRATION_TOPIC.
         And, subscribe to this topic to start the registration process. 
     """
-    global parameters, public_key
+    global parameters, private_key, public_key
 
     # TODO: Persistence of the connection.
+    if userdata["asymmetric"] == "dh":
+        
+        parameters         = utils.dhParameters()
+        private_key        = parameters.generate_private_key()
+        public_key         = private_key.public_key()
 
-    g = parameters.parameter_numbers().g
-    p = parameters.parameter_numbers().p
+        g = parameters.parameter_numbers().g
+        p = parameters.parameter_numbers().p
     
-    registration_request = {
-        "auth": {
-            "symmetric": userdata["symmetric"],
-            "asymmetric": userdata["asymmetric"],
-            "g": g,
-            "p": p,
-            "public_key": public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode( "utf-8" )
+        registration_request = {
+            "auth": {
+                "symmetric": userdata["symmetric"],
+                "asymmetric": userdata["asymmetric"],
+                "g": g,
+                "p": p,
+                "public_key": public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode( "utf-8" )
+            }
         }
-    }
+    elif userdata["asymmetric"] == "ecdh":
+
+        private_key, public_key = utils.ecdhGenKeys(utils.curve)
+        print( type(public_key) )
+        registration_request = {
+            "auth": {
+                "symmetric": userdata["symmetric"],
+                "asymmetric": userdata["asymmetric"],
+                "x": public_key.x,
+                "y": public_key.y
+            }
+        }
+        print( json.dumps( registration_request ) )
     message = add_header_message( registration_request, userdata, REGISTRATION_TOPIC, 1 )
     client.subscribe( REGISTRATION_TOPIC ) 
     utils.send( client, None, message ) # Send the registration request.
@@ -119,28 +138,41 @@ def on_registration( client, userdata, json_message ):
         # Receive message with information to build the key.
         auth = json_message.get( "auth", "" )
         if auth != "": 
-            
-            platform_pub_key = auth.get( "public_key", "" )
-            if platform_pub_key != "":
+                
+            if userdata["asymmetric"] == "dh":
 
+                platform_pub_key = auth.get( "public_key", "" )
+                if platform_pub_key == "":
+                    # Cannot be empty.
+                    connection_failed = True 
+                
                 # Generate shared key
                 platform_pub_key = utils.load_key( platform_pub_key )
                 shared_key = utils.dhGenSharedKey( private_key, platform_pub_key )
-                # Create encriptor as specified
-                if symmetricAlgorithm == "fernet":
-
-                    encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
-                elif symmetricAlgorithm == "chacha":
-
-                    encriptor = ChaCha20Poly1305( shared_key )
+            elif userdata["asymmetric"] == "ecdh":
                 
-                if encriptor != None:
-                    # Send KEY + 30 to show rightful to the platform.
-                    key = shared_key+"30".encode()
-                    key_confirmation = { "payload": str( key ) }
-                    message = add_header_message( key_confirmation, userdata, REGISTRATION_TOPIC, 3 )
-                    utils.send( client, encriptor, message )
-                    msg_2 = True       
+                x = auth.get( "x", "" )
+                y = auth.get( "y", "" )
+                if x == "" and y == "":
+                    # Cannot be empty.
+                    connection_failed = True 
+                platform_pub_key = ec.Point( utils.curve, x, y )
+                shared_key = utils.ecdhGenSharedKey( private_key, platform_pub_key )
+            # Create encriptor as specified
+            if symmetricAlgorithm == "fernet":
+
+                encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
+            elif symmetricAlgorithm == "chacha":
+
+                encriptor = ChaCha20Poly1305( shared_key )
+            
+            if encriptor != None:
+                # Send KEY + 30 to show rightful to the platform.
+                key = shared_key+"30".encode()
+                key_confirmation = { "payload": str( key ) }
+                message = add_header_message( key_confirmation, userdata, REGISTRATION_TOPIC, 3 )
+                utils.send( client, encriptor, message )
+                msg_2 = True       
         if not msg_2:
             
             utils.send_error( client, REGISTRATION_TOPIC, "Platform can not be verified." )

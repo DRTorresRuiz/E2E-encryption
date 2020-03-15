@@ -1,11 +1,12 @@
 from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
 from cryptography.hazmat.primitives.asymmetric import dh, rsa
 from cryptography.hazmat.backends import default_backend
-from cryptography.fernet import Fernet
 from chacha20poly1305 import ChaCha20Poly1305
+from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
 from datetime import datetime
 from random import random
+import tinyec.ec as ec
 import time as t
 import requests
 import asyncio
@@ -105,14 +106,16 @@ def on_registration( client, userdata, msg ):
                     # Received message 1 for the registration process       
                     auth = message.get( "auth", "" )
                     if auth != "":
-
-                        g = auth.get( "g", "" )
-                        p = auth.get( "p", "" )
-                        device_pub_key = auth.get( "public_key", "" )
-                        symmetricAlgorithm = auth.get( "symmetric", "" )
+                        
                         asymmetricAlgorithm = auth.get( "asymmetric", "" ) 
-                        if g != "" and p != "" and device_pub_key != "" and \
-                            symmetricAlgorithm != "" and asymmetricAlgorithm != "":
+                        if asymmetricAlgorithm == "dh":
+
+                            g = auth.get( "g", "" )
+                            p = auth.get( "p", "" )
+                            device_pub_key = auth.get( "public_key", "" )
+                            if g == "" and p == "" and device_pub_key == "":
+                                # Cannot be empty.
+                                connection_failed = True 
                             # Generate private key and public key for platform in the registration process
                             pn = dh.DHParameterNumbers( p, g )
                             parameters = pn.parameters(default_backend())
@@ -120,23 +123,46 @@ def on_registration( client, userdata, msg ):
                             # Generate shared key
                             device_pub_key = utils.load_key( device_pub_key )
                             shared_key = utils.dhGenSharedKey( private_key, device_pub_key )
-                            if symmetricAlgorithm == "fernet":
 
-                                encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
-                            elif symmetricAlgorithm == "chacha":
-                                
-                                print( shared_key )
-                                print( len(shared_key) )
-                                encriptor = ChaCha20Poly1305( shared_key )
                             # Building message two.
                             answer_registration_request = {
                                 "auth": {
                                     "public_key": public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode( "utf-8" )
                                 }                        
                             }
-                            message = add_header_message( answer_registration_request, userdata, REGISTRATION_TOPIC, 2 )
-                            utils.send( client, None, message )
-                            msg_1 = True
+                        elif asymmetricAlgorithm == "ecdh":
+                            
+                            x = auth.get( "x", "" )
+                            y = auth.get( "y", "" )
+                            if x == "" and y == "":
+                                # Cannot be empty.
+                                connection_failed = True 
+                            private_key, public_key = utils.ecdhGenKeys(utils.curve)
+                            device_pub_key = ec.Point( utils.curve, x, y )
+                            shared_key = utils.ecdhGenSharedKey( private_key, device_pub_key )
+                            
+                            # Building message two.
+                            answer_registration_request = {
+                                "auth": {
+                                    "x": public_key.x,
+                                    "y": public_key.y
+                                }                        
+                            }
+                            
+                        if shared_key == "":
+
+                            connection_failed = True
+                        symmetricAlgorithm = auth.get( "symmetric", "" )
+                        if symmetricAlgorithm == "fernet":
+
+                            encriptor = Fernet( base64.urlsafe_b64encode( shared_key ) )
+                        elif symmetricAlgorithm == "chacha":
+                            
+                            encriptor = ChaCha20Poly1305( shared_key )
+                        
+                        message = add_header_message( answer_registration_request, userdata, REGISTRATION_TOPIC, 2 )
+                        utils.send( client, None, message )
+                        msg_1 = True
                     if not msg_1:
 
                         print( "ERROR: Registration request incomplete." )
@@ -144,6 +170,7 @@ def on_registration( client, userdata, msg ):
                 elif msg_1 and number == 3:
                     # Received a message with the KEY generated + 30, to ensure the
                     # rightful of the device to connect. Send KEY Received + 20.
+                    
                     if encriptor != None:
                         
                         keyPlusThirty = shared_key+"30".encode()

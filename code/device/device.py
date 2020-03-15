@@ -19,7 +19,7 @@ import os
 # Add path to get utils.py
 from sys import path
 path.append("../") 
-import utils as utils # Include different  common functions.
+import utils as utils # Include different common functions.
 
 # Topic used to connect to the platform through the MQTT Server.
 REGISTRATION_TOPIC = "register" 

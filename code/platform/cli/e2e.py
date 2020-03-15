@@ -76,6 +76,18 @@ def add_header_message( message, userdata, topic, msg_number=0 ):
 
     return message
 
+def modify_encriptor( key, symmetricAlgorithm ):
+    """
+
+    """
+    global encriptor
+    if symmetricAlgorithm == "fernet":
+
+        encriptor = Fernet( key.encode("utf-8") )
+    elif symmetricAlgorithm == "chacha":
+
+        encriptor = ChaCha20Poly1305( key.encode("latin-1") )
+
 def on_registration( client, userdata, msg ):
     """
         Method used for the registration process of a device.
@@ -148,7 +160,7 @@ def on_registration( client, userdata, msg ):
                                     "y": public_key.y
                                 }                        
                             }
-                            
+
                         if shared_key == "":
 
                             connection_failed = True
@@ -170,17 +182,30 @@ def on_registration( client, userdata, msg ):
                 elif msg_1 and number == 3:
                     # Received a message with the KEY generated + 30, to ensure the
                     # rightful of the device to connect. Send KEY Received + 20.
-                    
                     if encriptor != None:
-                        
+
+                        new_key = message.get( "new_key", "" )
+                        if new_key != "":
+
+                            modify_encriptor( new_key, symmetricAlgorithm )
+
                         keyPlusThirty = shared_key+"30".encode()
                         keyReceived = message.get( "payload", "" )
                         if str( keyPlusThirty ) == keyReceived:
 
                             key = shared_key+"20".encode()
                             key_confirmation = { "payload": str( key ) }
+                            if symmetricAlgorithm == "fernet":
+                    
+                                new_key = utils.simpleFernetGenKey().decode("utf-8")
+                            elif symmetricAlgorithm == "chacha":
+
+                                new_key = os.urandom(32).decode("latin-1")
+                            key_confirmation["new_key"] = new_key
                             message = add_header_message( key_confirmation, userdata, REGISTRATION_TOPIC, 4 )
                             utils.send( client, encriptor, message )
+                            # Ephemeral key implementation:
+                            modify_encriptor( new_key, symmetricAlgorithm )
                             msg_3 = True
                     if not msg_3:
                         
@@ -191,6 +216,10 @@ def on_registration( client, userdata, msg ):
                     if encriptor != None:
 
                         if message.get( "status", "ERROR" ) == "OK":
+                            new_key = message.get( "new_key", "" )
+                            if new_key != "":
+
+                                modify_encriptor( new_key, symmetricAlgorithm )
 
                             deviceType = message.get( "type", "" )
                             if deviceType != "" and deviceType == "I":
@@ -201,8 +230,17 @@ def on_registration( client, userdata, msg ):
 
                                 code = input( "Enter the code provided by the device: " )
                                 code_confirmation = { "code": code }
+                                if symmetricAlgorithm == "fernet":
+                    
+                                    new_key = utils.simpleFernetGenKey().decode("utf-8")
+                                elif symmetricAlgorithm == "chacha":
+
+                                    new_key = os.urandom(32).decode("latin-1")
+                                code_confirmation["new_key"] = new_key
                                 message = add_header_message( code_confirmation, userdata, REGISTRATION_TOPIC, 6 )
                                 utils.send( client, encriptor, message )
+                                # Ephemeral key implementation:
+                                modify_encriptor( new_key, symmetricAlgorithm ) 
                             msg_5 = True
                     if not msg_5:
                         
@@ -228,15 +266,28 @@ def on_registration( client, userdata, msg ):
 
                                 validDevice = True   
                         if validDevice:
-                            
+                            new_key = message.get( "new_key", "" )
+                            if new_key != "":
+
+                                modify_encriptor( new_key, symmetricAlgorithm )
+
                             data_topic = "data-" + deviceID + "-" + str( round( random() * 1000000 ) )
                             key_topic = "key-" + deviceID + "-" + str( round( random() * 1000000 ) )
                             topic_message = { 
                                 "data_topic": data_topic,
                                 "key_topic": key_topic
                             }
+                            if symmetricAlgorithm == "fernet":
+                    
+                                new_key = utils.simpleFernetGenKey().decode("utf-8")
+                            elif symmetricAlgorithm == "chacha":
+
+                                new_key = os.urandom(32).decode("latin-1")
+                            topic_message["new_key"] = new_key
                             message = add_header_message( topic_message, userdata, REGISTRATION_TOPIC, 8 )
                             utils.send( client, encriptor, message )
+                            # Ephemeral key implementation:
+                            modify_encriptor( new_key, symmetricAlgorithm ) 
                             newDevice = {
                                 "id": deviceID,
                                 "type": deviceType,

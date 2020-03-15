@@ -19,7 +19,8 @@ from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
-    # the regex ^$ matches empty
-    url(r'^$',views.home,name='home'),
-    
+    url(r'^$', views.home, name="home"),
+    path('platform', views.platform, name="platform"),
+    path('error', views.error, name="error"),
+
 ]

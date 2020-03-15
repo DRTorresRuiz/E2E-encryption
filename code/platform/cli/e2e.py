@@ -9,8 +9,10 @@ from random import random
 import time as t
 import requests
 import asyncio
+import hashlib
 import base64
 import click
+import hmac
 import json
 import os
 import re
@@ -23,6 +25,7 @@ PLATFORM_ID            = "platform-cli-muii"
 REGISTRATION_TOPIC     = "register"
 REGISTERED_DEVICE_FILE = 'registeredDevices.json'
 KMS_SERVER_URL         = "http://127.0.0.1:5000/"
+HASH_KEY               = b'kkpo-kktua'
 
 #####
 ### Parameters used for the listening process
@@ -58,9 +61,18 @@ def add_header_message( message, userdata, topic, msg_number=0 ):
     """
     message["id"]       = PLATFORM_ID
     message["topic"]    = topic
+    message["timestamp"]= str( datetime.now() )
     if msg_number != 0:
 
         message["msg"]  = msg_number
+    
+    header = {
+        "id": PLATFORM_ID,
+        "topic": topic,
+        "timestamp": message["timestamp"]
+    }
+    message["sign"] = hmac.new(HASH_KEY, json.dumps( header ).encode(), hashlib.sha384).hexdigest()
+
     return message
 
 def on_registration( client, userdata, msg ):
@@ -72,8 +84,8 @@ def on_registration( client, userdata, msg ):
     global msg_1, msg_3, msg_5, msg_7
     global public_key, private_key, shared_key
     global symmetricAlgorithm, asymmetricAlgorithm, encriptor
-    message = utils.get_message( str( msg.payload.decode( "utf-8" ) ), encriptor )
-    if message != "":
+    message, trustworthy = utils.get_message( str( msg.payload.decode( "utf-8" ) ), encriptor, HASH_KEY )
+    if message != "" and trustworthy:
         
         topic = message.get( "topic", "" )
         if topic == REGISTRATION_TOPIC:
@@ -218,8 +230,11 @@ def on_registration( client, userdata, msg ):
                         connection_failed = True
                 elif msg_7 and number == 9:
                     # We received a confirmation of the topics reception from the device.
-                    # TODO: Last verification
                     connected.release()
+    if not trustworthy:
+
+        print( "Corrupt message received. Closing process.")
+        connection_failed = True
 
 def connect_MQTT( server, port, user, password, message_handler ):
     """ Connection to MQTT Server."""
@@ -332,7 +347,7 @@ def get_data_message( payload, secrets, symmetricAlgorithm ):
 
                 encriptor = ChaCha20Poly1305( key.encode("latin-1") )
 
-            message = utils.get_message( payload, encriptor )
+            message, trustworthy = utils.get_message( payload, encriptor, HASH_KEY )
             if message == "":
                 key = secrets.get( "0", "" )
                 encriptor = None
@@ -345,7 +360,11 @@ def get_data_message( payload, secrets, symmetricAlgorithm ):
 
                         encriptor = ChaCha20Poly1305( key.encode("latin-1") )
 
-                    message = utils.get_message( payload, encriptor )
+                    message, trustworthy = utils.get_message( payload, encriptor, HASH_KEY )
+    
+    if not trustworthy:
+        
+        message = ""          
     return message 
 
 def on_message( client, userdata, msg ):

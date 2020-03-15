@@ -4,11 +4,14 @@ from cryptography.fernet import Fernet
 from flask_httpauth import HTTPBasicAuth
 from chacha20poly1305 import ChaCha20Poly1305
 import paho.mqtt.client as mqtt
+from datetime import datetime
 import threading
+import hashlib
 import base64
 import click
 import time
 import json
+import hmac
 import os
 import sys
 
@@ -16,9 +19,10 @@ from sys import path
 path.append("../") # Add path to get utils.py
 import utils as utils # Include different common fucntions.
 
-KMS_ID               = "kms-muii"
+KMS_ID                  = "kms-muii"
 TOPIC_FILE              = 'registeredDeviceTopics.json'
 SECRET_FILE             = 'secrets.json'
+HASH_KEY                = b'kkpo-kktua'
 
 topicsPublishNewKeys    = {}
 secretRegisteredDevices = {}
@@ -114,6 +118,14 @@ def add_header_message( message, topic ):
     """
     message["id"]       = KMS_ID
     message["topic"]    = topic
+    message["timestamp"]= str( datetime.now() )
+    
+    header = {
+        "id": KMS_ID,
+        "topic": topic,
+        "timestamp": message["timestamp"]
+    }
+    message["sign"] = hmac.new(HASH_KEY, json.dumps( header ).encode(), hashlib.sha384).hexdigest()
 
     return message
 
@@ -161,8 +173,8 @@ def cli():
 @click.option( '-P', '--port', 'port', required=True, type=int, show_default=True, default=1883, help="Port of theMQTT Server to send keys." )
 @click.option( '-u', '--user', 'user', required=True, type=str, help="The user to connect to the MQTT Serve." )
 @click.option( '-p', '--password', 'password', required=True, type=str, prompt=True, hide_input=True, help="The password for the user to connect to the MQTT Serve. If you do not include this option, a prompt will appear to you introduce the password." )
-@click.option( '-t', '--time', 'time', required=True, type=int, default=10, help=" Time taken to send new keys." )
-def connect( server, port, user, password, time ):
+@click.option( '-t', '--time', 't', required=True, type=int, default=10, help=" Time taken to send new keys." )
+def connect( server, port, user, password, t ):
     """
         Start KMS. It will start the RESTful at port 5000 and start the Key Rotation process.
     """
@@ -223,7 +235,7 @@ def connect( server, port, user, password, time ):
         # Save into `secret.json` file
         with open( SECRET_FILE, 'w' ) as file:
             json.dump( secretRegisteredDevices, file, indent=4 )
-        time.sleep( time )
+        time.sleep( t )
 
 if __name__ == '__main__':
   # This main process only include the `connect` command.

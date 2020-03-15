@@ -8,8 +8,10 @@ from random import random
 import threading
 import time as t
 import asyncio
+import hashlib
 import base64
 import click
+import hmac
 import json
 
 # Add path to get utils.py
@@ -24,6 +26,7 @@ symetric_key       = ""                    # Symetric Key used for encryption
 data_topic         = ""                    # Topic used to send values from sensors.
 key_topic          = ""                    # Topic used to receives values from KMS.
 encriptor          = None
+HASH_KEY           = b'kkpo-kktua'
 
 #####
 ### Parameters used for the registration process
@@ -51,9 +54,17 @@ def add_header_message( message, userdata, topic, msg_number=0 ):
     message["id"]       = userdata["id"]
     message["type"]     = userdata["type"]
     message["topic"]    = topic
+    message["timestamp"]= str( datetime.now())
     if msg_number != 0:
 
         message["msg"]  = msg_number
+    header = {
+        "id": userdata["id"],
+        "topic": topic,
+        "timestamp": message["timestamp"]
+    }
+    
+    message["sign"] = hmac.new(HASH_KEY, json.dumps( header ).encode(), hashlib.sha384).hexdigest()
     return message
 
 def on_connect( client, userdata, flags, rc ):
@@ -208,9 +219,9 @@ def on_secure( client, userdata, json_message ):
 def on_message( client, userdata, msg ):
     # This function receives different messages from topics to which this device
     # is subscribed. 
-    global data_topic, key_topic, encriptor
-    message = utils.get_message( str( msg.payload.decode( "utf-8" ) ), encriptor )
-    if message != "":
+    global data_topic, key_topic, encriptor, connection_failed
+    message, trustworthy = utils.get_message( str( msg.payload.decode( "utf-8" ) ), encriptor, HASH_KEY )
+    if message != "" and trustworthy:
         # Get the id of the device that sent a message.
         deviceID = message.get( "id", userdata["id"] )
         if deviceID != userdata["id"]:
@@ -223,6 +234,11 @@ def on_message( client, userdata, msg ):
             elif topic == REGISTRATION_TOPIC:
                 # Messages received for the registration process.
                 on_registration( client, userdata, message )
+
+    if not trustworthy:
+
+        print( "Corrupt message received. Closing process.")
+        connection_failed = True
 
 def connect_MQTT( userdata, serverinfo ):
     """ Connection to MQTT Server. """
@@ -251,16 +267,14 @@ def send_data( client, userdata ):
 
     global encriptor
     new_message = {
-        "id": userdata["id"],
-        "type": userdata["type"],
-        "topic": data_topic,
         "values": {
             "sensor1": random(),
             "sensor2": random()
         }
     }
+    message = add_header_message( new_message, userdata, data_topic )
     print( "[", datetime.now() ,"] Value sent: ", new_message )
-    utils.send( client, encriptor, new_message )
+    utils.send( client, encriptor, message )
 
 @click.command()
 @click.option( '-s', '--server', 'server', required=True, type=str, show_default=True, default='broker.shiftr.io', help="The MQTT Server to send data." )

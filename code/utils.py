@@ -151,12 +151,13 @@ def load_key( pubkey ):
         pubkey = pubkey.replace( 'BEGIN RSA', 'BEGIN' ).replace( 'END RSA', 'END' )
         return load_pem_public_key( pubkey.encode(), default_backend() ) 
 
-def get_message( payload, encriptor ):
+def get_message( payload, encriptor, hash_key ):
     """
         Returns the message in JSON format, otherwise an empty string.
         Checks if it is encrypted or not.
     """
     message = ""
+    trusful = True
     if is_json( payload ):
         # The message received is loaded as a dictionary by using json library.
         message = json.loads( payload )
@@ -176,14 +177,43 @@ def get_message( payload, encriptor ):
             if is_json( possible_message ):
                 # If it is a JSON we continue the process...
                 message = json.loads( possible_message.decode( "utf-8" ) )
-    return message
+    
+    if message != "":
+        # Check HMAC
+        _id = message.get( "id", "" )
+        _topic = message.get( "topic", "" )
+        _timestamp = message.get( "timestamp", "" )
+        _wrap = message.get( "wrap", "" ) 
+        if _id != "" and _topic != "" and _timestamp != "" and _wrap != "":
+            header = {
+                "id": _id,
+                "topic": _topic,
+                "timestamp": _timestamp
+            }
+            sign = hmac.new(hash_key, json.dumps( header ).encode(), hashlib.sha384).hexdigest()
+            del message["wrap"]
+            message["sign"] = sign
+            wrap = hmac.new(sign.encode(), json.dumps( message ).encode(), hashlib.sha384).hexdigest()
+
+            if _wrap != wrap:
+                
+                message = ""
+                trusful = False
+                print( "Not trustful message.")
+    return message, trusful
 
 def send( client, encriptor, msg ):
     """ 
         This function sends a message to an specified topic.
         Returns True if message was sent correctly, otherwise False. 
         The `msg` need to include the `topic` parameter.
+        The `msg` need also to include the `sign` parameter.
     """
+    sign = msg.get( "sign", "" )
+    if sign != "":
+        msg["wrap"] = hmac.new(sign.encode(), json.dumps( msg ).encode(), hashlib.sha384).hexdigest()
+        del msg["sign"]
+
     topic = msg.get( "topic", "" )
     if topic == "":
 

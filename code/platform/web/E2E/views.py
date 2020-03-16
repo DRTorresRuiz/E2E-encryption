@@ -5,6 +5,10 @@ from django.http import HttpResponse
 import paho.mqtt.client as mqtt
 from django.utils.datastructures import MultiValueDictKeyError
 
+import sys
+sys.path.append('../cli/')
+#from ...cli.e2e import register
+from e2e import register
 
 
 import json
@@ -12,6 +16,8 @@ import json
 CLIENT_ID              = "platform"
 server                 = 'broker.shiftr.io/register'
 CLIENT_PASS             = "platform-MUII"
+
+
 
 def home(request):
     return render(request, 'index.html')
@@ -35,7 +41,8 @@ def platform(request):
         return render(request, 'error.html')
     else:
       return render(request, 'platform.html')
-
+def registerNewDevice(request):
+    register( 'broker.shiftr.io', 1883, 'platform', 'platform-MUII')
          
 
       

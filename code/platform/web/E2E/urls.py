@@ -22,5 +22,6 @@ urlpatterns = [
     url(r'^$', views.home, name="home"),
     path('platform', views.platform, name="platform"),
     path('error', views.error, name="error"),
+    path('register', views.registerNewDevice, name="register"),
 
 ]

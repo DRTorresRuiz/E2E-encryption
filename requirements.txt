@@ -1,7 +1,10 @@
 astroid==2.3.3
 certifi==2019.11.28
+cffi==1.14.0
+chacha20poly1305==0.0.3
 chardet==3.0.4
 Click==7.0
+cryptography==2.8
 Flask==1.1.1
 Flask-HTTPAuth==3.3.0
 idna==2.9
@@ -11,10 +14,16 @@ Jinja2==2.11.1
 lazy-object-proxy==1.4.3
 MarkupSafe==1.1.1
 mccabe==0.6.1
+Naked==0.1.31
 paho-mqtt==1.5.0
+pycparser==2.20
+pycryptodome==3.9.7
 pylint==2.4.4
+PyYAML==5.3
 requests==2.23.0
+shellescape==3.8.1
 six==1.14.0
+tinyec==0.3.1
 typed-ast==1.4.1
 urllib3==1.25.8
 Werkzeug==1.0.0

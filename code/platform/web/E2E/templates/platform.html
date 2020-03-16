@@ -60,13 +60,13 @@
             <div class="container">
                 <h1 align="center" style="margin-top:25px;">End to End</h1>      
                     <div id="registerForm" name="registerForm" >
-                    <form>
+                    <form action="">
                         <div class="row justify-content-md-center" style="margin-top:25px">
                             <div class="col col-sm-3" style="text-align:right;font-size:22px">
                              <label for="device">Synchronize new device</label>
                             </div>
-                             <div class="col-md-auto">
-                                 <button type="submit" style =""class="btn btn-primary">Synchronize</button>
+                          <div class=" justify-content-md-right" >
+                                 <button type="submit" onclick=""style ="margin-left:10px"class="btn btn-primary">Synchronize</button>
                              </div>
                          </div>
                      </form>
@@ -175,23 +175,72 @@
                     }
                 }
     </script>
-    
     <script>
     var listTopic = [];
-        
+        var string="Conexión realizada: <br>";
+        $('#message').append(string);  
         var client = mqtt.connect('mqtt://platform:platform-MUII@broker.shiftr.io', {
             clientId: 'javascript'
     });
         client.on('connect', function(){
-           var string="Conexión realizada: <br>";
-            $('#message').append(string);      
+            client.subscribe('/register');     
         // client.unsubscribe('/example');
 
         });
 
         client.on('message', function(topic, message) {
-             var string=' new message:'+ topic+': ' +message+ '<br>';
+            var obj = JSON.parse(message);
+                    
+            var auth =obj['auth'];
+            /*if(obj['type']=='O'){
+                Swal.fire({
+                    title: 'Submit the registration code',
+                    input: 'text',
+                    html: '<b>' + obj['id'] +' is trying to connect</b>',
+                    inputAttributes: {
+                        autocapitalize: 'off'
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'Submit',
+                    showLoaderOnConfirm: true,
+                    preConfirm: (text) => {
+                        return fetch(`//api.github.com/users/${text}`)
+                        .then(response => {
+                            if (!response.ok) {
+                            throw new Error(response.statusText)
+                            }
+                            return response.json()
+                        })
+                        .catch(error => {
+                            Swal.showValidationMessage(
+                            `Request failed: ${error}`
+                            )
+                        })
+                    },
+                    allowOutsideClick: () => !Swal.isLoading()
+                    }).then((result) => {
+                    if (result.value) {
+                        Swal.fire({
+                        title: `${result.value.login}'s avatar`,
+                        imageUrl: result.value.avatar_url
+                        })
+                    }
+                    })
+            }*/
+            var string= topic+': ' +obj['id']+ ' envió a  '+message+'<br>';
             $('#message').append(string);
+        
+                secret_request = {"id":obj['id']};
+               /* fetch('http://127.0.0.1:5000/get-key'))
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(myJson) {
+                    alert(myJson);
+                });*/
+                var string= topic+': ' +obj['id']+ ' envió a  '+message+'<br>';
+                $('#message').append(string);
+            
         });
 
     </script>

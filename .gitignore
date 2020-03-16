@@ -132,3 +132,5 @@ dmypy.json
 .vscode/
 
 registeredDevices.json
+registeredDeviceTopics.json
+secrets.json

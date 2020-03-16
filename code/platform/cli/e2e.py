@@ -497,6 +497,7 @@ def connect( server, port, user, password ):
 @click.option( '-t', '--topic', 'topic', required=True, default="", type=str, help="Introduce the input you want to subscribe." )
 def listen_topic( server, port, user, password, topic ):
     """
+
     """
     client = connect_MQTT( server, port, user, password, on_message )
     if topic != "":

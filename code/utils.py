@@ -1,4 +1,4 @@
-from cryptography.fernet import Fernet, MultiFernet
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
@@ -20,78 +20,50 @@ import hashlib
 from base64 import b64encode, b64decode
 from Crypto.Random import get_random_bytes
 
-# Fernet is a symmetric encryption method which makes sure that the
-# message encrypted cannot be manipulated/read without the key. It 
-# uses URL safe encoding for the keys. Fernet uses 128-bit AES in 
-# CBC mode and PKCS7 padding, with HMAC using SHA256 for 
-# authentication. The IV is created from os.random(). This page 
-# decodes the token.
-
-# Fernet (symmetric encryption) with key rotation
-def multiKeysFernetGenKeys(keysNumber):
-    keys = []
-    for i in range(keysNumber):
-        #generate fernet keys for encrytp and decrypt data
-        keys.append(Fernet(Fernet.generate_key()))
-
-    f = MultiFernet(keys)
-    return f
+###################################
 
 def simpleFernetGenKey():
-    #generate fernet keys for encrytp and decrypt data
+    """
+        Generate fernet keys for encrytp and decrypt data
+    """
     key=Fernet.generate_key()
     return key
 
-def fernetEncrypt(key, message):
-    f = Fernet(key)
-    # encrypt data
-    token = f.encrypt(message)
-    fernetPrint(token)
-    return token
+def fernetPrint( token ):
+    """
 
-def fernetDecrypt(f, token):
-    m = f.decrypt(token)
-    print ("Fernet decripted msg:",m.decode("utf-8"))
-    return m.decode("utf-8")
-
-# rotate token password
-def fernetKeyRotation(f, token):
-    rotated = f.rotate(token)
-    fernetPrint(rotated)
-    return rotated
-
-def fernetPrint(token):
+    """
     cipher = binascii.hexlify(bytearray(token))
     print ("\nFernet:\t\t",cipher.decode("utf-8"))
     print ("Version:\t",cipher[0:2].decode("utf-8"))
     print ("Time stamp:\t",cipher[2:18].decode("utf-8"))
-    #IV = initialization vector
     print ("IV(Salt):\t",cipher[18:50].decode("utf-8"))
     print ("Cypher:\t\t",cipher[50:-64].decode("utf-8"))
     print ("HMAC:\t\t",cipher[-64:].decode("utf-8"))
 
 # Diffie Hellman 
-
 # HMAC is a message authentication code (MAC).
 def dhParameters():
-    # Generate parameters g and p
-    parameters = dh.generate_parameters(generator=5, 
-                                    key_size=512,
-                                    backend=default_backend())
+    """
 
-    # print("g = %d"%parameters.parameter_numbers().g)
-    # print("p = %d\n"%parameters.parameter_numbers().p)
+    """
+    # Generate parameters g and p
+    parameters = dh.generate_parameters(generator=5, key_size=512, backend=default_backend())
     return parameters
 
 def dhGenKeys(parameters):
+    """
+
+    """
     private_key = parameters.generate_private_key()
     public_key = private_key.public_key()
-
     return private_key, public_key
 
 def dhGenSharedKey(private_key, remote_public_key):
+    """
+
+    """
     shared_key = private_key.exchange(remote_public_key)
-    
     derived_key = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
@@ -99,26 +71,33 @@ def dhGenSharedKey(private_key, remote_public_key):
         info=b'handshake data',
         backend=default_backend()
     ).derive(shared_key)
-
-    # print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
     return derived_key
 
 # Elliptic Curve Diffie–Hellman 
 # The elliptic curve used for the ECDH calculations is 256-bit named curve brainpoolP256r1. The 
 # private keys are 256-bit (64 hex digits) and are generated randomly. The public keys will be 
 # 257 bits (65 hex digits), due to key compression.
-def compress(pubKey):
-    return hex(pubKey.x) + hex(pubKey.y % 2)[2:]
+def compress( pubKey ):
+    """
+
+    """
+    return hex( pubKey.x ) + hex( pubKey.y % 2 )[2:]
 
 curve = registry.get_curve('brainpoolP256r1')
 
 def ecdhGenKeys(curve):
+    """
+
+    """ 
     private_key = secrets.randbelow(curve.field.n)
     public_key = private_key * curve.g
     print("public key:", public_key)
     return private_key, public_key
 
 def ecdhGenSharedKey(private_key, remote_public_key):
+    """
+    
+    """
     shared_key = private_key * remote_public_key
     shared_key = str.encode(compress(shared_key))
 
@@ -133,7 +112,7 @@ def ecdhGenSharedKey(private_key, remote_public_key):
     print("derived_key_shared_key", binascii.hexlify(bytearray(derived_key)).decode("utf-8"),"\n")
     return derived_key
 
-###################################
+
 
 def load_key( pubkey ):
     """
@@ -164,20 +143,27 @@ def get_message( payload, encriptor, hash_key ):
     else:
         # We try to decypher this message...
         if encriptor != None:
-
+            
             encrypted_message = payload
             possible_message = ""
             if isinstance( encriptor, Fernet ):
                 
-                possible_message = encriptor.decrypt( encrypted_message.encode() )
+                try:
+                    possible_message = encriptor.decrypt( encrypted_message.encode() )
+                except InvalidToken:
+                    pass
             elif isinstance( encriptor, ChaCha20Poly1305 ):
                 
                 fixedNonce = b"147235869147"
-                possible_message = encriptor.decrypt( fixedNonce, encrypted_message.encode("latin-1") )
+                try:
+                    possible_message = encriptor.decrypt( fixedNonce, encrypted_message.encode("latin-1") )
+                except InvalidToken:
+                    pass
             if is_json( possible_message ):
                 # If it is a JSON we continue the process...
                 message = json.loads( possible_message.decode( "utf-8" ) )
-    
+                
+
     if message != "":
         # Check HMAC
         _id = message.get( "id", "" )
@@ -199,7 +185,7 @@ def get_message( payload, encriptor, hash_key ):
                 
                 message = ""
                 trustful = False
-                print( "Not trustful message.") 
+                print( "Not trustful message.")         
     return message, trustful
 
 def send( client, encriptor, msg ):
@@ -269,3 +255,27 @@ def is_json( x ):
     except ValueError:
         return False
     return True
+
+def generate_new_key( symmetricAlgorithm ):
+    """
+
+    """
+    if symmetricAlgorithm == "fernet":
+                    
+        return simpleFernetGenKey().decode("utf-8")
+    elif symmetricAlgorithm == "chacha":
+
+        return os.urandom(32).decode("latin-1")
+    return ""
+
+def modify_encriptor( key, symmetricAlgorithm ):
+    """
+
+    """
+    if symmetricAlgorithm == "fernet":
+
+        return Fernet( key.encode("utf-8") )
+    elif symmetricAlgorithm == "chacha":
+
+        return ChaCha20Poly1305( key.encode("latin-1") )
+    return None

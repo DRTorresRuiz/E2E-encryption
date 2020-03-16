@@ -108,7 +108,7 @@ def on_connect( client, userdata, flags, rc ):
     elif userdata["asymmetric"] == "ecdh":
 
         private_key, public_key = utils.ecdhGenKeys(utils.curve)
-        print( type(public_key) )
+        #print( type(public_key) )
         registration_request = {
             "auth": {
                 "symmetric": userdata["symmetric"],
@@ -117,7 +117,7 @@ def on_connect( client, userdata, flags, rc ):
                 "y": public_key.y
             }
         }
-        print( json.dumps( registration_request ) )
+        #print( json.dumps( registration_request ) )
     message = add_header_message( registration_request, userdata, REGISTRATION_TOPIC, 1 )
     client.subscribe( REGISTRATION_TOPIC ) 
     utils.send( client, None, message ) # Send the registration request.
@@ -254,6 +254,14 @@ def on_received_message_8( client, userdata, msg ):
         return True
     return False
 
+def send_error( client, topic, error_message ):
+    """
+
+    """
+    global connection_failed
+    utils.send_error( client, REGISTRATION_TOPIC, error_message )
+    connection_failed = True
+
 def on_registration( client, userdata, json_message ):
     """
 
@@ -265,23 +273,20 @@ def on_registration( client, userdata, json_message ):
         #
         msg_2 = on_received_message_2( client, userdata, json_message )
         if not msg_2:
-            
-            utils.send_error( client, REGISTRATION_TOPIC, "Platform can not be verified." )
-            connection_failed = True
+
+            send_error( client, REGISTRATION_TOPIC, "Platform can not be verified." )
     elif msg_2 and number == 4:
         #
         msg_4 = on_received_message_4( client, userdata, json_message )
         if not msg_4:
 
-            utils.send_error( client, REGISTRATION_TOPIC, "Verification code does not match." )
-            connection_failed = True
+            send_error( client, REGISTRATION_TOPIC, "Verification code does not match." )
     elif msg_4 and number == 6 and userdata["type"] != "I":
         # 
         msg_6 = on_received_message_6( client, userdata, json_message )
         if not msg_6:
 
-            utils.send_error( client, REGISTRATION_TOPIC, "Verification code does not match." )
-            connection_failed = True
+            send_error( client, REGISTRATION_TOPIC, "Verification code does not match." )
     elif number == 8:
         #
         if on_received_message_8( client, userdata, json_message ):
@@ -289,8 +294,7 @@ def on_registration( client, userdata, json_message ):
             connected.release()
         else:
 
-            utils.send_error( client, REGISTRATION_TOPIC, "Connection Error" )
-            connection_failed = True
+            send_error( client, REGISTRATION_TOPIC, "Connection Error" )
 
 def on_secure( client, userdata, json_message ):
     """
@@ -306,7 +310,7 @@ def on_secure( client, userdata, json_message ):
         elif userdata["symmetric"] == "chacha":
 
             encriptor = ChaCha20Poly1305( new_key.encode("latin-1") )
-        print( "Managing new keys received, ", json_message )
+        #print( "Managing new keys received, ", json_message )
     
 def on_message( client, userdata, msg ):
     # This function receives different messages from topics to which this device
@@ -327,7 +331,7 @@ def on_message( client, userdata, msg ):
                 # Messages received for the registration process.
                 on_registration( client, userdata, message )
     if not trustworthy:
-
+        
         print( "Corrupt message received. Closing process.")
         connection_failed = True
 

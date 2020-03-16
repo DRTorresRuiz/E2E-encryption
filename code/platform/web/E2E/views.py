@@ -11,6 +11,7 @@ import sys
 sys.path.append('../cli/')
 #from ...cli.e2e import register
 from e2e import register,connect_MQTT,getRegisteredDevices,wait_til
+import utils as utils
 
 
 import json
@@ -22,6 +23,7 @@ REGISTRATION_TOPIC      = "/register"
 KMS_SERVER_URL         = "http://127.0.0.1:5000/"
 HASH_KEY               = b'kkpo-kktua'
 REGISTERED_DEVICE_FILE  = "../cli/registeredDevices.json"
+encriptor              = None
 
 
 
@@ -84,7 +86,7 @@ def registerNewDevice( request ):
             "symmetric": newDevice["symmetric"],
             "shared_key": newDevice["shared_key"]
         }
-        message = requests.post( KMS_SERVER_URL+"register-device", json = post_message, auth=( user, password ) )
+        message = request.post( KMS_SERVER_URL+"register-device", json = post_message, auth=( user, password ) )
         print( "Device successfully added to KMS: ", message.json() )
         print( newDevice.get("id"), " registration completed." )
     else:
@@ -97,6 +99,10 @@ def on_registrationDevice( client, userdata, msg ):
     """
         Method used for the registration process of a device.
     """
-    """
-      Aqui se escribe lo que sea
-    """
+
+
+def getMessage(request):
+  #Method used for decrypt message got by mqtt
+  message = request.POST.get('message', False)
+  get_message( message, encriptor, HASH_KEY )
+  return render(request, 'platform.html')     

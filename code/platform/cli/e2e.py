@@ -1,4 +1,5 @@
-from cryptography.hazmat.primitives.serialization import PublicFormat, Encoding, load_pem_public_key
+from cryptography.hazmat.primitives.serialization import PublicFormat, \
+    Encoding, load_pem_public_key
 from cryptography.hazmat.primitives.asymmetric import dh, rsa
 from cryptography.hazmat.backends import default_backend
 from chacha20poly1305 import ChaCha20Poly1305
@@ -247,7 +248,6 @@ def on_receive_message_7( client, userdata, msg ):
             topic_message["new_key"] = utils.generate_new_key( symmetricAlgorithm )
             message = add_header_message( topic_message, userdata, REGISTRATION_TOPIC, 8 )
             utils.send( client, encriptor, message )
-            # Ephemeral key implementation:
             encriptor = utils.modify_encriptor( topic_message["new_key"], symmetricAlgorithm ) 
             newDevice = {
                 "id": msg.get( "id" ),

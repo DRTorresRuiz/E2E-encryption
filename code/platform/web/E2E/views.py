@@ -102,7 +102,10 @@ def on_registrationDevice( client, userdata, msg ):
 
 
 def getMessage(request):
-  #Method used for decrypt message got by mqtt
-  message = request.POST.get('message', False)
-  get_message( message, encriptor, HASH_KEY )
-  return render(request, 'platform.html')     
+    #Method used for decrypt message got by mqtt
+    postData = request.POST.get('param', False)
+    #postData = request.form
+    #json = str(postData['param'].value)
+    print(postData)
+   # get_message( message, encriptor, HASH_KEY )
+    return render(request, 'platform.html')     

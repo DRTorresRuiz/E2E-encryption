@@ -112,7 +112,8 @@ def on_connect( client, userdata, flags, rc ):
                 "y": public_key.y
             }
         }
-    message = add_header_message( registration_request, userdata, REGISTRATION_TOPIC, 1 )
+    message = add_header_message( registration_request, userdata,\
+        REGISTRATION_TOPIC, 1 )
     client.subscribe( REGISTRATION_TOPIC ) 
     # Send the registration request.
     utils.send( client, None, message )
@@ -132,7 +133,8 @@ def introduceCode( client, userdata ):
     message = add_header_message( code_confirmation, userdata, REGISTRATION_TOPIC, 7 )
     utils.send( client, encriptor, message )
     # After sending the message, modify encriptor with the new key before generated.
-    encriptor = utils.modify_encriptor( code_confirmation["new_key"], symmetricAlgorithm ) 
+    encriptor = utils.modify_encriptor( code_confirmation["new_key"],\
+        symmetricAlgorithm ) 
 
 def on_received_message_2( client, userdata, msg ):
     """
@@ -180,9 +182,11 @@ def on_received_message_2( client, userdata, msg ):
             key_confirmation = { "payload": str( key ) }
             # Generate the new key to be used by the platform to encrypt next message.
             key_confirmation["new_key"] = utils.generate_new_key( userdata["symmetric"] )
-            message = add_header_message( key_confirmation, userdata, REGISTRATION_TOPIC, 3 )
+            message = add_header_message( key_confirmation, userdata,\
+                REGISTRATION_TOPIC, 3 )
             utils.send( client, encriptor, message )
-            # After sending the message, modify encriptor with the new key before generated.
+            # After sending the message, modify encriptor with the new
+            #  key before generated.
             encriptor = utils.modify_encriptor( key_confirmation["new_key"],\
                 userdata["symmetric"] )
             return True
@@ -204,19 +208,22 @@ def on_received_message_4( client, userdata, msg ):
             # Confirmed authority of the platform
             new_key = msg.get( "new_key", "" )
             if new_key != "":
-
+                # Get the new_key to encrypt next message.
                 encriptor = utils.modify_encriptor( new_key, userdata["symmetric"] )
             # Generate the new key to be used by the platform to encrypt next message.
             new_key_generated = utils.generate_new_key( userdata["symmetric"] )                
             send_confirmation_message( client, userdata, REGISTRATION_TOPIC,\
                 5, new_key_generated )
-            # After sending the message, modify encriptor with the new key before generated.
-            encriptor = utils.modify_encriptor( new_key_generated, userdata["symmetric"] ) 
+            # After sending the message, modify encriptor with the 
+            # new key before generated.
+            encriptor = utils.modify_encriptor( new_key_generated,\
+                userdata["symmetric"] ) 
             # Now, depending of the type of device we do...
             if userdata["type"] == "O":
                 # Generate an verificationCode
                 verificationCode = str( round( random() * 1000000 ) )
-                print( "Introduce this code into your device: ", str( verificationCode ) )
+                print( "Introduce this code into your device: ",\
+                     str( verificationCode ) )
             elif userdata["type"] == "I":
                 # Introduce the code provided by the platform and send it.
                 introduceCodeThread = threading.Thread(target=introduceCode,\
@@ -240,11 +247,12 @@ def on_received_message_6( client, userdata, msg ):
         # Send confirmation of the key
         new_key = msg.get( "new_key", "" )
         if new_key != "":
-
+            # Get the new_key to encrypt next message.
             encriptor = utils.modify_encriptor( new_key, userdata["symmetric"] )
         # Generate the new key to be used by the platform to encrypt next message.
         new_key_generated = utils.generate_new_key( userdata["symmetric"] )                
-        send_confirmation_message( client, userdata, REGISTRATION_TOPIC, 7, new_key_generated )
+        send_confirmation_message( client, userdata, REGISTRATION_TOPIC, 7,\
+            new_key_generated )
         # After sending the message, modify encriptor with the new key before generated.
         encriptor = utils.modify_encriptor( new_key_generated, userdata["symmetric"] ) 
         return True
@@ -260,7 +268,7 @@ def on_received_message_8( client, userdata, msg ):
     global encriptor, data_topic, key_topic
     new_key = msg.get( "new_key", "" )
     if new_key != "":
-
+        # Get the new_key to encrypt next message.
         encriptor = utils.modify_encriptor( new_key, userdata["symmetric"] )
     data_topic = msg.get( "data_topic", "" )
     key_topic = msg.get( "key_topic", "" )
@@ -424,18 +432,20 @@ def send_data( client, userdata ):
 def start( server, port, user, password, typeDevice, idDevice, time, symmetric, asymmetric ):
     """
         Run the simulation of an IoT Device.\n
-        This command start with the process of synchronization of an IoT Device with the platform.
-        Once the device is synchronized and registered in the platform, it will start sending
-        values of its sensors to the platform. The data sent is encrypted by using an specified 
-        symmetric algorithm. There is a KMS that manage the Key Rotation for these algorithms. 
-        Diffie-Hellman (DH) and other alternatives are used for shared key generation during 
-        registration process.
+        This command start with the process of synchronization of an IoT 
+        Device with the platform. Once the device is synchronized and registered
+        in the platform, it will start sending values of its sensors to the platform.
+        The data sent is encrypted by using an specified symmetric algorithm. 
+        There is a KMS that manage the Key Rotation for these algorithms. 
+        Diffie-Hellman (DH) and other alternatives are used for shared 
+        key generation during registration process.
     """
     global connected
     # Group data received    
     userdata = {
         # Data information about the Device
-        "id": idDevice if idDevice != "" else "device-" + str( round( random() * 1000000 ) ),
+        "id": idDevice if idDevice != "" else \
+            "device-" + str( round( random() * 1000000 ) ),
         "type": typeDevice,
         "symmetric": symmetric,
         "asymmetric": asymmetric
@@ -468,7 +478,8 @@ def cli():
 if __name__ == '__main__':
     """
         This main process only include the `connect` command.
-        If you need help to run this command, check: `python device.py connect --help`
+        If you need help to run this command, 
+        check: `python device.py connect --help`
     """
     cli.add_command( start )
     # ADD HERE A NEW COMMNAD.

@@ -87,13 +87,13 @@ pip install -r requirements.txt
 ### Devices
 
 ```bash
-python code/device/device.py connect -u <DEVICE_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <DEVICE_PASSWORD>`
+python code/device/device.py start -u <DEVICE_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <DEVICE_PASSWORD>`. Use --help to obtain more information.
 ```
 
 ### KMS
 
 ```bash
-python code/kms/server.py connect -u <KMS_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <KMS_PASSWORD>`
+python code/kms/server.py connect -u <KMS_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <KMS_PASSWORD>`. Use --help to obtain more information.
 ```
 
 ### Platform
@@ -103,17 +103,11 @@ python code/kms/server.py connect -u <KMS_ID> # A prompt will appear to introduc
 To register a device run:
 
 ```bash
-python code/platform/cli/e2e.py register -u <PLATFORM_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <PLATFORM_PASSWORD>`
+python code/platform/cli/e2e.py register -u <PLATFORM_ID> # A prompt will appear to introduce the password. Alternatively, include `-p <PLATFORM_PASSWORD>`. Use --help to obtain more information.
 ```
 
 This command will listen all topics included in the `registeredDevices.json` file:
 
 ```bash
-python code/platform/cli/e2e.py connect -u <PLATFORM_ID> # A prompt will appear to introduce the password
-```
-
-#### Web Service
-
-```bash
-python code/platform/web/manage.py runserver
+python code/platform/cli/e2e.py connect -u <PLATFORM_ID> # A prompt will appear to introduce the password. Use --help to obtain more information. Use --help to obtain more information.
 ```
